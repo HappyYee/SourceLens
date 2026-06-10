@@ -107,7 +107,7 @@ Status: latest refresh is routed through thin platform adapters.
 
 ## 6. Current Next Task
 
-Recommended next task: Phase 2 opening task, start Card Renderer Registry + ResultLine + capabilities-to-UI wiring after the user provides the Phase 2 prompt.
+Recommended next task: Phase 2 Task F2, migrate the X content area into `XPostCard` after the user provides the F2 prompt.
 
 Follow-up direction:
 
@@ -115,9 +115,10 @@ Follow-up direction:
 - `fetchForBinding` now dispatches through the adapter registry for all fetchable platforms.
 - Fetchability is derived from the registry.
 - `src/lib/report.ts` now provides shared error-code classification and a future `FetchReport` envelope; legacy result types remain in place until the Phase 2 UI ResultLine window.
+- Phase 2 F1 extracted shared card atoms (`CardMedia`, `MediaGrid`, `LinkPreview`, `TagList`) and pure helpers without changing card rendering conditions.
 - Preserve the working Phase 0 behavior for YouTube, Bilibili, and X.
 - Carry `truncate()` or its successor into the future `NormalizedItem` validation boundary before DB writes.
-- Phase 2 should introduce the card renderer registry and shared result-line presentation without changing existing card pixels unless the prompt explicitly authorizes it.
+- Continue Phase 2 with XPostCard, VideoCard, ItemCard shell/registry, then ResultLine + capabilities-to-UI.
 - Do not start schema migrations unless the user explicitly provides a migration prompt.
 - Consider an X Debug Panel later for deeper observability, but it is not required for this fix.
 
@@ -249,11 +250,11 @@ Web AI collaborators working read-only should not update this file unless the us
 ## 12. Last Updated
 
 - Updated by: Codex Local
-- Date: 2026-06-11 04:34:19 CST
-- Current status: Repository is on private GitHub `main`; Phase 1 Task E is implemented locally and awaiting user approval to push. Phase 1 now has platform adapters for all current fetchable platforms plus optional `errorCode` diagnostics on legacy result objects. Existing API fields, status text, UI display, schema, and connector behavior are unchanged.
-- What changed: Added `src/lib/report.ts` with `ErrorCode`, `classifyError`, shared `NETWORK_ERR`, and a future `FetchReport` envelope; moved `networkHint` to use the shared regex; added optional `errorCode` to `RefreshOutcome`, `RefreshResult`, `BackfillCounts`, and `PlaylistSyncResult`; wired `errorCode` through fetcher catch paths and AuthProfile check responses; removed the stale `FETCHABLE` export from `connectors/index.ts`; added `tests/report.test.ts`. `report.ts` is client-safe and does not runtime-import `browser.ts`, avoiding Playwright leakage into frontend bundles.
-- Tests run: `node --test --experimental-strip-types --experimental-sqlite tests/report.test.ts` passed with 8/8 tests; `npm test` passed with 156/156 tests; `npm run build` passed.
-- Verification results: YouTube latest passed with `added=0`, `updated=15`, `failedCount=0`, `errorCode=null`, `networkLabel=国外刷新`; Bilibili latest passed with `added=0`, `updated=50`, `failedCount=0`, `errorCode=null`, `networkLabel=国内刷新`; X latest passed on first try with `added=1`, `updated=39`, `failedCount=0`, `errorCode=null`, so no transient X `lastError` was recorded this round. A temporary invalid X Room/binding returned the unchanged error `无法解析 X 用户名：请填 @handle 或 x.com/{handle} 链接` plus `errorCode=input`, and the temporary Room was deleted after validation.
+- Date: 2026-06-11 04:55:28 CST
+- Current status: Repository is on private GitHub `main`; Phase 2 Task F1 is implemented locally and awaiting user approval to push. Phase 1 was pushed and is closed. ItemCard shared rendering atoms are extracted while legacy card output, CSS, data/API code, schema, and platform logic remain unchanged.
+- What changed: Added `src/components/cards/shared.ts`, `CardMedia.tsx`, `MediaGrid.tsx`, `LinkPreview.tsx`, and `TagList.tsx`; moved `thumbClass`, `sqClass`, and `hideBrokenImage` into the shared helper; rewired `ItemCard.tsx` to compose the new atoms while keeping X media/link/tag outer conditions in `ItemCard`; added `tests/cards.test.ts`. `globals.css`, `src/lib/**`, API routes, and schema were not modified.
+- Tests run: `node --test --experimental-strip-types --experimental-sqlite tests/cards.test.ts` passed with 2/2 tests; `npm test` passed with 158/158 tests; `npm run build` passed.
+- Verification results: Browser check on the X Room covered text/quote/video/link states after loading older items: `thumb=11`, `play=11`, `linkCards=2`, `quoteFallback=76`, `brokenImages=0`, no console errors/warnings. YouTube backfill view showed `50` video cards with `50` play overlays and `50` duration badges; Bilibili backfill view showed `50` video cards with `referrerPolicy=no-referrer` on thumbnails, `50` play overlays, and `brokenImages=0`; no console errors/warnings. A temporary real RSS + podcast verification Room produced RSS `sq s1` and podcast `sq s2` square cards with no broken images or console errors, then was deleted.
 - Known failures: No active Phase 0 P0 blocker observed. Existing X Items outside the verified `@elonmusk` backfill window may still need a future refresh/backfill to receive newer quote-card normalization. X latest can still have occasional transient SPA/network failures that pass on retry; record `binding.lastError` and `errorCode` in this file whenever it recurs.
-- Next recommended task: Wait for the user's Phase 2 prompt, expected to begin with Card Renderer Registry + ResultLine + capabilities-to-UI wiring.
-- Summary: Phase 1 is locally complete: fetcher latest refresh has no platform if-chain, seven platform adapters are registered, platform capabilities exist, and optional error-code classification is available without breaking legacy API/UI consumers.
+- Next recommended task: Wait for the user's Phase 2 Task F2 prompt, expected to migrate X-specific content rendering into `XPostCard`.
+- Summary: Phase 2 has started with a no-visual-change extraction of shared card atoms; ItemCard still owns platform-specific conditions and remains the card shell for now.

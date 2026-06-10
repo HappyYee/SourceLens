@@ -3,11 +3,14 @@ import { displayTitle, formatDuration } from "@/lib/view";
 import {
   IconArrow,
   IconMic,
-  IconPlay,
   IconSpark,
   PlatformIcon,
   platformLabel,
 } from "./icons";
+import { CardMedia } from "./cards/CardMedia";
+import { LinkPreview } from "./cards/LinkPreview";
+import { MediaGrid } from "./cards/MediaGrid";
+import { TagList } from "./cards/TagList";
 
 const LINK_LABEL: Record<Platform, string> = {
   youtube: "在 YouTube 查看",
@@ -32,26 +35,11 @@ const X_KIND_LABEL: Record<string, string> = {
   unknown: "Post",
 };
 
-function thumbClass(v?: number | null): string {
-  const n = (((v ?? 0) % 4) + 4) % 4;
-  return `t${n}`;
-}
-function sqClass(p: Platform): string {
-  if (p === "arxiv") return "s0";
-  if (p === "podcast") return "s2";
-  if (p === "bilibili") return "s3";
-  return "s1";
-}
-
 function srcLabelFor(it: ItemVM): string {
   if (it.platform === "youtube" && it.youtubeKind === "short") return "YouTube · Shorts";
   if (it.platform === "bilibili") return it.videoKind === "short" ? "Bilibili · Short" : "Bilibili";
   if (it.platform === "x") return `X · ${X_KIND_LABEL[it.postKind ?? "text"] ?? "Post"}`;
   return platformLabel(it.platform);
-}
-
-function hideBrokenImage(e: { currentTarget: HTMLImageElement }): void {
-  e.currentTarget.style.display = "none";
 }
 
 export default function ItemCard({
@@ -66,7 +54,6 @@ export default function ItemCard({
   onEditTitle?: () => void;
 }) {
   const dur = formatDuration(it.durationSec);
-  const isVideoCard = it.platform === "youtube" || it.platform === "bilibili";
   const isPodcast = it.platform === "podcast";
   const aiTitled = it.platform === "x" && !it.title && !!it.aiTitle;
   const srcLabel = srcLabelFor(it);
@@ -75,48 +62,10 @@ export default function ItemCard({
   const links = it.linkCards ?? [];
   const isXQuoteWithoutQuoteCard =
     it.platform === "x" && it.postKind === "quote" && !links.some((c) => c.domain === "x.com");
-  const thumbnailReferrerPolicy = it.platform === "bilibili" ? "no-referrer" : undefined;
-
-  let media;
-  if (isVideoCard) {
-    media = (
-      <div className={`thumb ${thumbClass(it.thumbVariant)}`}>
-        {it.thumbnailUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={it.thumbnailUrl}
-            alt=""
-            referrerPolicy={thumbnailReferrerPolicy}
-            onError={hideBrokenImage}
-          />
-        ) : null}
-        <div className="play">
-          <IconPlay />
-        </div>
-        {dur ? <div className="dur">{dur}</div> : null}
-      </div>
-    );
-  } else if (it.platform === "x" && it.postKind === "video" && it.thumbnailUrl) {
-    media = (
-      <div className="thumb t1">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={it.thumbnailUrl} alt="" onError={hideBrokenImage} />
-        <div className="play">
-          <IconPlay />
-        </div>
-      </div>
-    );
-  } else {
-    media = (
-      <div className={`sq ${sqClass(it.platform)}`}>
-        <PlatformIcon platform={it.platform} />
-      </div>
-    );
-  }
 
   return (
     <div className="item">
-      {media}
+      <CardMedia it={it} dur={dur} />
       <div className="it-body">
         <div className="it-meta">
           <span className="src">
@@ -145,35 +94,11 @@ export default function ItemCard({
         {it.excerpt ? <div className="it-desc">{it.excerpt}</div> : null}
 
         {it.platform === "x" && photos.length > 0 && it.postKind !== "video" ? (
-          <div className={`it-mediagrid g${Math.min(photos.length, 4)}`}>
-            {photos.slice(0, 4).map((m, i) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                className="it-mthumb"
-                key={i}
-                src={m.thumb ?? ""}
-                alt=""
-                onError={hideBrokenImage}
-              />
-            ))}
-          </div>
+          <MediaGrid photos={photos} />
         ) : null}
 
         {it.platform === "x" && links.length > 0 ? (
-          <div className="it-linkcards">
-            {links.slice(0, 2).map((c, i) => (
-              <a
-                className="it-linkcard"
-                key={i}
-                href={c.url}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <span className="lc-domain">{c.domain || "链接"}</span>
-                {c.title ? <span className="lc-title">{c.title}</span> : null}
-              </a>
-            ))}
-          </div>
+          <LinkPreview links={links} />
         ) : null}
 
         {isXQuoteWithoutQuoteCard ? (
@@ -181,14 +106,7 @@ export default function ItemCard({
         ) : null}
 
         {tags.length > 0 ? (
-          <div className="it-tags">
-            {tags.slice(0, 3).map((t) => (
-              <span className="it-tag" key={t}>
-                #{t}
-              </span>
-            ))}
-            {tags.length > 3 ? <span className="it-tag more">+{tags.length - 3}</span> : null}
-          </div>
+          <TagList tags={tags} />
         ) : null}
 
         <a className="it-link" href={it.url} target="_blank" rel="noopener noreferrer">
