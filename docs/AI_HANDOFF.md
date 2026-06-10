@@ -47,7 +47,7 @@ SourceLens is designed around user-controlled sources, not platform ranking. Cap
 
 ### YouTube
 
-Status: usable.
+Status: usable and locally verified after the per-request proxy fix.
 
 - Supports `@handle`, channel links, and `UC...` channel IDs.
 - Supports latest refresh.
@@ -55,6 +55,7 @@ Status: usable.
 - Latest refresh, backfill, and playlist-tag sync now pass an explicit per-request HTTP proxy dispatcher from `resolveRefreshNetwork`.
 - If no proxy env var is exported, YouTube foreign refresh falls back to `http://127.0.0.1:33210`, matching the X foreign-refresh default.
 - YouTube network failures are wrapped with Chinese guidance instead of leaking bare `fetch failed`.
+- Local verification on 2026-06-11: with dev started from a shell without exported proxy env vars, the `@MeiTouJun` source latest refresh, backfill, and playlist-tag sync all succeeded without bare `fetch failed`.
 - Supports normal videos and Shorts.
 - Playlists are used as tags, not as timeline cards.
 - Dedupe key is `externalId=videoId`.
@@ -74,7 +75,7 @@ Status: P0 usable.
 
 ### X
 
-Status: P0 can fetch real posts; login-state display fix has been implemented in code.
+Status: P0 can fetch real posts; login-state display fix has been implemented and locally verified.
 
 - `@elonmusk` has been fetched successfully with 40 posts.
 - Code can parse text, image, video, link, and quote posts.
@@ -83,12 +84,13 @@ Status: P0 can fetch real posts; login-state display fix has been implemented in
 - `SingletonLock` / profile-busy launch errors now map to a friendly message instead of a long Chromium log.
 - Successful X refresh/backfill now marks the X `AuthProfile` as `logged_in` to clear stale expired UI.
 - Quote cards now dedupe quoted-tweet URLs, prefer quoted `screen_name` for titles, strip trailing bare `t.co` links from excerpts, and render a fallback quote line if no x.com quote card is present.
+- Local verification on 2026-06-11: Settings check shows logged in after refresh, profile-busy shows a friendly message when the X login window is open, and repeated refresh keeps X item `externalId` count equal to distinct count.
 
 ## 5. Current Known Problems
 
 - Existing X Items already stored before the quote-card mapping fix are not rewritten automatically.
-- X login-state and profile-busy fixes still need real local profile hand verification in the Settings UI.
-- YouTube proxy fix still needs real local hand verification against the affected `@MeiTouJun` source in a dev shell without exported `HTTPS_PROXY`.
+- X refresh currently logs Prisma `item.create` errors (`unexpected end of hex escape`) for some newly fetched items while the API still returns success; this needs a focused follow-up diagnosis.
+- `npm run build` can warn that Google Fonts CSS download optimization failed when external network access to fonts.googleapis.com is flaky; build still completes.
 - X Debug Panel is optional observability work, not the current blocker.
 - Remote Fetch Worker has not been implemented.
 - P1 availability / unavailable state has not been implemented.
@@ -96,19 +98,15 @@ Status: P0 can fetch real posts; login-state display fix has been implemented in
 
 ## 6. Current Next Task
 
-Recommended next task: hand-verify YouTube refresh/backfill/playlist-tag sync in the local UI.
+Recommended next task: diagnose the X per-item Prisma write error seen during real refresh.
 
-Verification direction:
+Follow-up direction:
 
-- Start `npm run dev` from a shell without exported `HTTPS_PROXY`; refresh `https://www.youtube.com/@MeiTouJun`.
-- Verify latest refresh no longer shows bare `fetch failed`.
-- Verify backfill and playlist-tag sync also use the same proxy behavior.
-- If the local HTTP proxy is not listening on `127.0.0.1:33210`, export the actual `HTTPS_PROXY` and record the port as a follow-up.
-- Confirm Bilibili and X behavior is unchanged.
-- With a logged-in `x-main` profile, Settings -> X -> "检查登录状态" should show logged in, or `needs_check` only if genuinely uncertain.
-- With the X login window still open, check/refresh should show a friendly profile-busy message.
-- Refreshing the `@elonmusk` Source successfully should mark the X `AuthProfile` as `logged_in`.
-- Room timeline quote cards should either show a quoted x.com card or the fallback "引用了一条推文".
+- Reproduce one X refresh and inspect only non-sensitive failing item shape/path.
+- Do not read cookies, Local Storage, or `.env`.
+- Determine whether `raw`, `excerpt`, `linkCards`, or another string field contains invalid escape content for Prisma/SQLite.
+- Add a focused sanitizer or serialization fix if needed.
+- Preserve existing X/Bilibili/YouTube behavior.
 - Consider an X Debug Panel later for deeper observability, but it is not required for this fix.
 
 ## 7. Role Split Between AIs
@@ -239,10 +237,11 @@ Web AI collaborators working read-only should not update this file unless the us
 ## 12. Last Updated
 
 - Updated by: Codex Local
-- Date: 2026-06-10 23:06:58 CST
-- Current status: Repository is on private GitHub `main`; YouTube, Bilibili P0, and X P0 are usable. YouTube per-request proxy support is implemented locally for latest refresh, backfill, and playlist-tag sync.
-- What changed: YouTube connector functions now accept an optional per-request `proxyUrl`, use an undici dispatcher when it is an HTTP(S) proxy, and wrap YouTube network failures with Chinese guidance. `fetcher.ts` now passes the `resolveRefreshNetwork` proxy into YouTube refresh/backfill/tag sync.
-- Tests run: `node --test --experimental-strip-types --experimental-sqlite tests/proxy.test.ts` passed; `node --test --experimental-strip-types --experimental-sqlite tests/network.test.ts` passed; `npm test` passed with 128/128 tests; `npm run build` passed.
-- Known failures: No automated test failure observed. Real local YouTube hand verification is still pending in a dev shell without exported `HTTPS_PROXY`.
-- Next recommended task: Verify YouTube latest refresh, backfill, and playlist-tag sync against the affected source in the local browser.
-- Summary: YouTube network path aligned with X-style explicit proxy resolution without schema changes or new dependencies.
+- Date: 2026-06-11 00:06:05 CST
+- Current status: Repository is on private GitHub `main` at `3385c99`; YouTube proxy fix and X login-state fix have both been locally verified. Bilibili P0 refresh regression check passed.
+- What changed: This update only records verification results. No functional code was changed.
+- Tests run: `git fetch/ff-only` confirmed latest main; `npm test` passed with 128/128 tests; `npm run build` passed with a non-fatal Google Fonts download warning; read-only DB aggregation was run.
+- Verification results: X Settings check showed logged in; opening the X login window then checking showed the friendly profile-busy message; closing the window restored logged-in status; X refresh succeeded and marked AuthProfile logged in; second X refresh kept `totalExternalIds=46` and `distinctExternalIds=46`; visible X quote cards had fallback quote rows and no duplicate quote cards; YouTube `@MeiTouJun` latest refresh/backfill/playlist-tag sync all succeeded from a dev shell without exported proxy env vars; Bilibili refresh succeeded with `networkLabel=国内刷新`.
+- Known failures: X refresh emitted Prisma `item.create` errors (`unexpected end of hex escape`) for some item creates while still returning API success. Existing X items before the quote-card mapping fix are not rewritten automatically.
+- Next recommended task: Diagnose and fix the X per-item Prisma write error without reading cookies, Local Storage, or `.env`.
+- Summary: True-machine verification completed for X auth/profile-busy behavior and YouTube per-request proxy behavior; one new X write-path issue was recorded for follow-up.
