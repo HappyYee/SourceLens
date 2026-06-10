@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { isSafeProfileDir } from "@/lib/authprofile";
-import { checkLoginStatus } from "@/lib/browser";
+import { BrowserError, checkLoginStatus } from "@/lib/browser";
 import { checkBilibiliLogin, type BiliLoginDetail } from "@/lib/connectors/bilibili-net";
+import { classifyError, type ErrorCode } from "@/lib/report";
 import {
   formatOutcome,
   networkHint,
@@ -74,10 +75,16 @@ export async function POST(
         : debug?.note
           ? `无法确认：${debug.note}`
           : "无法确认登录状态，请稍后重试";
+    const errorCode: ErrorCode | undefined = status === "expired"
+      ? "auth_expired"
+      : status === "needs_check" && debug?.profileBusy
+        ? "profile_busy"
+        : undefined;
     const o: RefreshOutcome = {
       ...base,
       ok,
       error,
+      errorCode,
       hint: ok ? undefined : networkHint(net.region, error),
     };
     await prisma.authProfile.update({
@@ -87,7 +94,14 @@ export async function POST(
     return NextResponse.json({ ...o, debug });
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
-    const o: RefreshOutcome = { ...base, ok: false, error, hint: networkHint(net.region, error) };
+    const errorCode = classifyError(error, e instanceof BrowserError ? e.code : undefined);
+    const o: RefreshOutcome = {
+      ...base,
+      ok: false,
+      error,
+      errorCode,
+      hint: networkHint(net.region, error),
+    };
     await prisma.authProfile.update({
       where: { id: ap.id },
       data: { status: "needs_check", lastResult: formatOutcome(o), lastCheckedAt: new Date() },

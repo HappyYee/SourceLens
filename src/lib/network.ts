@@ -2,6 +2,8 @@
 // 代理逻辑集中在此，不散落到各 connector。
 // 显式 .ts 后缀：让本模块在 node --test（原生 ESM）下也能直接 import 运行。
 import { pickProxyUrl } from "./proxy-url.ts";
+import { NETWORK_ERR } from "./report.ts";
+import type { ErrorCode } from "./report.ts";
 
 export type RefreshRegion = "domestic" | "foreign" | "auto";
 export type ProxyMode = "none" | "system" | "manual";
@@ -74,10 +76,9 @@ export interface RefreshOutcome {
   skippedCount?: number;
   scannedCount?: number;
   error?: string;
+  errorCode?: ErrorCode;
   hint?: string;
 }
-
-const NETWORK_ERR = /超时|timeout|aborted|econn|fetch failed|网络错误|enotfound|socket|代理|proxy/i;
 
 /** 由区域 + 错误信息生成网络相关提示（仅网络类错误才提示）。 */
 export function networkHint(

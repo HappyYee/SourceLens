@@ -6,10 +6,12 @@ import {
   resolveBackfillLimit,
 } from "./connectors/youtube";
 import { ruleTitle } from "./ai/title";
+import { BrowserError } from "./browser.ts";
 import { inWindow } from "./view";
 import { assertDataDir } from "./storage";
 import { truncate } from "./text.ts";
 import { fetchablePlatforms, getAdapter } from "./platform/registry.ts";
+import { classifyError, type ErrorCode } from "./report.ts";
 import {
   formatOutcome,
   networkHint,
@@ -108,6 +110,7 @@ export interface RefreshResult {
   updated: number;
   failedCount?: number;
   error?: string;
+  errorCode?: ErrorCode;
   networkLabel?: string;
   hint?: string;
 }
@@ -148,6 +151,10 @@ function jsonOrNull(v: unknown): string | null {
 
 function writeFailureWarning(failed: number): string | null {
   return failed > 0 ? `${failed} 条写入失败（详见服务端日志）` : null;
+}
+
+function errorCodeFor(e: unknown, msg: string): ErrorCode {
+  return classifyError(msg, e instanceof BrowserError ? e.code : undefined);
 }
 
 /**
@@ -285,6 +292,7 @@ export async function refreshBinding(
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    const errorCode = errorCodeFor(e, msg);
     await prisma.sourceBinding.update({
       where: { id: binding.id },
       data: { lastError: truncate(msg, 300) },
@@ -295,6 +303,7 @@ export async function refreshBinding(
       added: 0,
       updated: 0,
       error: msg,
+      errorCode,
       networkLabel: net.humanLabel,
       hint: networkHint(net.region, msg),
     };
@@ -349,6 +358,7 @@ export interface BackfillCounts {
   shortsCount: number;
   playlistTaggedCount: number;
   error?: string;
+  errorCode?: ErrorCode;
   networkLabel?: string;
   hint?: string;
 }
@@ -497,6 +507,7 @@ export async function backfillBinding(
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    const errorCode = errorCodeFor(e, msg);
     await prisma.sourceBinding.update({
       where: { id: binding.id },
       data: { lastError: truncate(msg, 300) },
@@ -504,6 +515,7 @@ export async function backfillBinding(
     return {
       ...ZERO_BACKFILL,
       error: msg,
+      errorCode,
       networkLabel: net.humanLabel,
       hint: networkHint(net.region, msg),
     };
@@ -514,6 +526,7 @@ export interface PlaylistSyncResult {
   taggedCount: number;
   playlistCount: number;
   error?: string;
+  errorCode?: ErrorCode;
   networkLabel?: string;
   hint?: string;
 }
@@ -569,6 +582,7 @@ export async function syncPlaylistTagsForBinding(
     return { taggedCount, playlistCount, networkLabel: net.humanLabel };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    const errorCode = errorCodeFor(e, msg);
     await prisma.sourceBinding.update({
       where: { id: binding.id },
       data: { lastError: truncate(msg, 300) },
@@ -577,6 +591,7 @@ export async function syncPlaylistTagsForBinding(
       taggedCount: 0,
       playlistCount: 0,
       error: msg,
+      errorCode,
       networkLabel: net.humanLabel,
       hint: networkHint(net.region, msg),
     };

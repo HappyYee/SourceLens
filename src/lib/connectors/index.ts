@@ -26,17 +26,6 @@ export interface BindingLike {
   query: string | null;
 }
 
-/** 可抓取的平台（manual 走手动粘贴，不抓取）。x / bilibili 走专用抓取（fetcher 内分流）。 */
-export const FETCHABLE: ReadonlySet<string> = new Set([
-  "rss",
-  "podcast",
-  "youtube",
-  "bilibili",
-  "x",
-  "github",
-  "arxiv",
-]);
-
 /** 把 binding 的存储字段解析为可抓取的 feed URL。 */
 export function resolveFeedUrl(b: BindingLike): string | null {
   switch (b.platform) {
