@@ -12,3 +12,8 @@ export function pickProxyUrl(
     null
   );
 }
+
+/** undici ProxyAgent 仅支持 http(s) 代理；socks 等交给全局兜底路径处理。 */
+export function isHttpProxyUrl(url: string | null | undefined): boolean {
+  return /^https?:\/\//i.test(url ?? "");
+}

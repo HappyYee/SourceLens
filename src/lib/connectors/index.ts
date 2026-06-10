@@ -15,7 +15,9 @@ import {
   youtubeRssUrl,
 } from "./youtube";
 import { normalizeEntry, type NormalizedItem, type RawEntry } from "../normalize";
-import { setupProxy } from "../proxy";
+import { proxyDispatcher, setupProxy } from "../proxy";
+import { isHttpProxyUrl } from "../proxy-url";
+import type { Dispatcher } from "undici";
 
 export interface BindingLike {
   platform: string;
@@ -71,28 +73,43 @@ const parser = new Parser({
 
 setupProxy(); // 进程内仅一次：让所有 fetch 走 HTTPS_PROXY/HTTP_PROXY/ALL_PROXY
 
+type FetchInit = RequestInit & { dispatcher?: Dispatcher };
+
+function ytDispatcher(proxyUrl?: string): Dispatcher | undefined {
+  return isHttpProxyUrl(proxyUrl) ? proxyDispatcher(proxyUrl as string) : undefined;
+}
+
+function ytFetchInit(init: RequestInit, proxyUrl?: string): FetchInit {
+  const dispatcher = ytDispatcher(proxyUrl);
+  return dispatcher ? { ...init, dispatcher } : init;
+}
+
+function youtubeNetworkError(e: unknown): Error {
+  const m = e instanceof Error ? e.message : String(e);
+  if (e instanceof Error && (e.name === "TimeoutError" || /timeout|aborted|connect/i.test(m))) {
+    return new Error("请求超时（dev 是否在导出了 HTTPS_PROXY 的同一 shell 里启动？）");
+  }
+  return new Error(`网络错误：${m}（国外刷新需要可用的 http 代理）`);
+}
+
 // 统一用 fetch 取文本（受代理控制），再交给 rss-parser 解析字符串
 // —— rss-parser 自带的 parseURL 走 Node http/https，不认代理，会超时。
-async function fetchText(url: string): Promise<string> {
+async function fetchText(url: string, proxyUrl?: string): Promise<string> {
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await fetch(url, ytFetchInit({
       headers: { "user-agent": "SourceLens/0.1 (+local)" },
       signal: AbortSignal.timeout(20_000),
-    });
+    }, proxyUrl));
   } catch (e) {
-    const m = e instanceof Error ? e.message : String(e);
-    if (e instanceof Error && (e.name === "TimeoutError" || /timeout|aborted|connect/i.test(m))) {
-      throw new Error("请求超时（dev 是否在导出了 HTTPS_PROXY 的同一 shell 里启动？）");
-    }
-    throw new Error(`网络错误：${m}`);
+    throw youtubeNetworkError(e);
   }
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.text();
 }
 
 /** 把用户输入解析成 UC 频道 ID：UC… / @handle / 频道 URL 均可（@handle 需 key）。 */
-async function resolveChannelId(input: string, apiKey?: string): Promise<string> {
+async function resolveChannelId(input: string, apiKey?: string, proxyUrl?: string): Promise<string> {
   const direct = extractChannelId(input);
   if (direct) return direct;
 
@@ -102,7 +119,12 @@ async function resolveChannelId(input: string, apiKey?: string): Promise<string>
       throw new Error("解析 @handle 需要 YOUTUBE_API_KEY（在 .env 配置后重启 dev）");
     }
     const u = `https://www.googleapis.com/youtube/v3/channels?part=id&forHandle=${encodeURIComponent("@" + handle)}&key=${apiKey}`;
-    const res = await fetch(u, { signal: AbortSignal.timeout(20_000) });
+    let res: Response;
+    try {
+      res = await fetch(u, ytFetchInit({ signal: AbortSignal.timeout(20_000) }, proxyUrl));
+    } catch (e) {
+      throw youtubeNetworkError(e);
+    }
     const data = (await res.json().catch(() => ({}))) as {
       error?: { code?: number; message?: string };
       items?: { id?: string }[];
@@ -170,12 +192,13 @@ interface YtMeta {
 async function fetchYouTubeMeta(
   ids: string[],
   apiKey: string,
+  proxyUrl?: string,
 ): Promise<Map<string, YtMeta>> {
   const map = new Map<string, YtMeta>();
   for (let i = 0; i < ids.length; i += 50) {
     const chunk = ids.slice(i, i + 50);
     const url = `${YT_VIDEOS_API}?part=contentDetails,snippet&id=${chunk.join(",")}&key=${apiKey}`;
-    const res = await fetch(url);
+    const res = await fetch(url, ytFetchInit({}, proxyUrl));
     if (!res.ok) continue;
     const data: unknown = await res.json();
     const items = (data as { items?: unknown[] }).items ?? [];
@@ -208,9 +231,10 @@ async function fetchYouTubeMeta(
 export async function fetchYouTube(
   channelInput: string,
   apiKey?: string,
+  proxyUrl?: string,
 ): Promise<NormalizedItem[]> {
-  const channelId = await resolveChannelId(channelInput, apiKey);
-  const feed = await parser.parseString(await fetchText(youtubeRssUrl(channelId)));
+  const channelId = await resolveChannelId(channelInput, apiKey, proxyUrl);
+  const feed = await parser.parseString(await fetchText(youtubeRssUrl(channelId), proxyUrl));
   const rows: { n: NormalizedItem; videoId: string | null }[] = [];
   for (const e of feed.items ?? []) {
     const n = normalizeEntry(e as unknown as RawEntry);
@@ -227,7 +251,7 @@ export async function fetchYouTube(
     const ids = rows.map((r) => r.videoId).filter((v): v is string => !!v);
     if (ids.length > 0) {
       try {
-        const meta = await fetchYouTubeMeta(ids, apiKey);
+        const meta = await fetchYouTubeMeta(ids, apiKey, proxyUrl);
         for (const r of rows) {
           const m = r.videoId ? meta.get(r.videoId) : undefined;
           if (!m) continue;
@@ -249,16 +273,12 @@ export async function fetchYouTube(
 
 const YT_API = "https://www.googleapis.com/youtube/v3";
 
-async function ytApiJson(url: string): Promise<Record<string, unknown>> {
+async function ytApiJson(url: string, proxyUrl?: string): Promise<Record<string, unknown>> {
   let res: Response;
   try {
-    res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+    res = await fetch(url, ytFetchInit({ signal: AbortSignal.timeout(20_000) }, proxyUrl));
   } catch (e) {
-    const m = e instanceof Error ? e.message : String(e);
-    if (e instanceof Error && (e.name === "TimeoutError" || /timeout|aborted|connect/i.test(m))) {
-      throw new Error("请求超时（dev 是否在导出了 HTTPS_PROXY 的同一 shell 里启动？）");
-    }
-    throw new Error(`网络错误：${m}`);
+    throw youtubeNetworkError(e);
   }
   const data = (await res.json().catch(() => ({}))) as {
     error?: { code?: number; message?: string; errors?: { reason?: string }[] };
@@ -280,7 +300,7 @@ interface ChannelInfo {
   videoCount: number | null;
 }
 
-async function resolveChannelInfo(sourceInput: string, apiKey: string): Promise<ChannelInfo> {
+async function resolveChannelInfo(sourceInput: string, apiKey: string, proxyUrl?: string): Promise<ChannelInfo> {
   const cid = extractChannelId(sourceInput);
   const handle = cid ? null : extractHandle(sourceInput);
   const selector = cid
@@ -292,6 +312,7 @@ async function resolveChannelInfo(sourceInput: string, apiKey: string): Promise<
 
   const data = (await ytApiJson(
     `${YT_API}/channels?part=snippet,contentDetails,statistics&${selector}&key=${apiKey}`,
+    proxyUrl,
   )) as {
     items?: {
       id: string;
@@ -325,15 +346,16 @@ export async function backfillYouTubeChannel(opts: {
   sourceInput: string;
   apiKey?: string;
   limit: number;
+  proxyUrl?: string;
 }): Promise<BackfillResult> {
-  const { sourceInput, apiKey, limit } = opts;
+  const { sourceInput, apiKey, limit, proxyUrl } = opts;
   if (!apiKey) throw new Error("缺少 YOUTUBE_API_KEY（在 .env 配置后重启 dev）");
 
-  const info = await resolveChannelInfo(sourceInput, apiKey);
+  const info = await resolveChannelInfo(sourceInput, apiKey, proxyUrl);
 
   const { ids, pageCount, hasMore } = await collectVideoIds(async (pageToken) => {
     const u = `${YT_API}/playlistItems?part=contentDetails&playlistId=${info.uploadsPlaylistId}&maxResults=50${pageToken ? `&pageToken=${pageToken}` : ""}&key=${apiKey}`;
-    const data = (await ytApiJson(u)) as {
+    const data = (await ytApiJson(u, proxyUrl)) as {
       items?: { contentDetails?: { videoId?: string } }[];
       nextPageToken?: string;
     };
@@ -348,6 +370,7 @@ export async function backfillYouTubeChannel(opts: {
     const chunk = ids.slice(i, i + 50);
     const data = (await ytApiJson(
       `${YT_API}/videos?part=snippet,contentDetails,status&id=${chunk.join(",")}&key=${apiKey}`,
+      proxyUrl,
     )) as {
       items?: {
         id: string;
@@ -400,10 +423,11 @@ const MAX_PLAYLISTS = 200; // 安全上限，避免极端频道失控
 export async function fetchChannelPlaylistTags(opts: {
   sourceInput: string;
   apiKey?: string;
+  proxyUrl?: string;
 }): Promise<PlaylistTagResult> {
-  const { sourceInput, apiKey } = opts;
+  const { sourceInput, apiKey, proxyUrl } = opts;
   if (!apiKey) throw new Error("缺少 YOUTUBE_API_KEY（在 .env 配置后重启 dev）");
-  const info = await resolveChannelInfo(sourceInput, apiKey);
+  const info = await resolveChannelInfo(sourceInput, apiKey, proxyUrl);
 
   // 1) 频道的公开播放列表
   const playlists: { id: string; title: string }[] = [];
@@ -411,6 +435,7 @@ export async function fetchChannelPlaylistTags(opts: {
   do {
     const data = (await ytApiJson(
       `${YT_API}/playlists?part=snippet&channelId=${info.channelId}&maxResults=50${pageToken ? `&pageToken=${pageToken}` : ""}&key=${apiKey}`,
+      proxyUrl,
     )) as {
       items?: { id: string; snippet?: { title?: string } }[];
       nextPageToken?: string;
@@ -428,6 +453,7 @@ export async function fetchChannelPlaylistTags(opts: {
     do {
       const data = (await ytApiJson(
         `${YT_API}/playlistItems?part=contentDetails&playlistId=${pl.id}&maxResults=50${token ? `&pageToken=${token}` : ""}&key=${apiKey}`,
+        proxyUrl,
       )) as {
         items?: { contentDetails?: { videoId?: string } }[];
         nextPageToken?: string;

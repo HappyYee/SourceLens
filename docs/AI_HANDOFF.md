@@ -52,6 +52,9 @@ Status: usable.
 - Supports `@handle`, channel links, and `UC...` channel IDs.
 - Supports latest refresh.
 - Supports backfill.
+- Latest refresh, backfill, and playlist-tag sync now pass an explicit per-request HTTP proxy dispatcher from `resolveRefreshNetwork`.
+- If no proxy env var is exported, YouTube foreign refresh falls back to `http://127.0.0.1:33210`, matching the X foreign-refresh default.
+- YouTube network failures are wrapped with Chinese guidance instead of leaking bare `fetch failed`.
 - Supports normal videos and Shorts.
 - Playlists are used as tags, not as timeline cards.
 - Dedupe key is `externalId=videoId`.
@@ -85,6 +88,7 @@ Status: P0 can fetch real posts; login-state display fix has been implemented in
 
 - Existing X Items already stored before the quote-card mapping fix are not rewritten automatically.
 - X login-state and profile-busy fixes still need real local profile hand verification in the Settings UI.
+- YouTube proxy fix still needs real local hand verification against the affected `@MeiTouJun` source in a dev shell without exported `HTTPS_PROXY`.
 - X Debug Panel is optional observability work, not the current blocker.
 - Remote Fetch Worker has not been implemented.
 - P1 availability / unavailable state has not been implemented.
@@ -92,10 +96,15 @@ Status: P0 can fetch real posts; login-state display fix has been implemented in
 
 ## 6. Current Next Task
 
-Recommended next task: hand-verify the X login-state and card display fixes in the local UI.
+Recommended next task: hand-verify YouTube refresh/backfill/playlist-tag sync in the local UI.
 
 Verification direction:
 
+- Start `npm run dev` from a shell without exported `HTTPS_PROXY`; refresh `https://www.youtube.com/@MeiTouJun`.
+- Verify latest refresh no longer shows bare `fetch failed`.
+- Verify backfill and playlist-tag sync also use the same proxy behavior.
+- If the local HTTP proxy is not listening on `127.0.0.1:33210`, export the actual `HTTPS_PROXY` and record the port as a follow-up.
+- Confirm Bilibili and X behavior is unchanged.
 - With a logged-in `x-main` profile, Settings -> X -> "检查登录状态" should show logged in, or `needs_check` only if genuinely uncertain.
 - With the X login window still open, check/refresh should show a friendly profile-busy message.
 - Refreshing the `@elonmusk` Source successfully should mark the X `AuthProfile` as `logged_in`.
@@ -230,10 +239,10 @@ Web AI collaborators working read-only should not update this file unless the us
 ## 12. Last Updated
 
 - Updated by: Codex Local
-- Date: 2026-06-10 22:21:10 CST
-- Current status: Repository is on private GitHub `main`; YouTube is usable, Bilibili P0 is usable, and X P0 can fetch real posts. X login-state display and quote-card consistency fixes are implemented locally.
-- What changed: X login checking now returns `needs_check` instead of false `expired` when SPA UI is inconclusive; profile-busy errors are friendlier; X refresh/backfill success clears stale expired status; quote cards and trailing `t.co` excerpts were cleaned up; status/quote fallback CSS was added.
-- Tests run: `node --test --experimental-strip-types --experimental-sqlite tests/browser.test.ts` passed; `node --test --experimental-strip-types --experimental-sqlite tests/xpost.test.ts` passed; `npm test` passed with 126/126 tests; `npm run build` passed.
-- Known failures: No automated test failure observed. Real local X profile hand verification is still pending.
-- Next recommended task: Verify the X Settings login check, profile-busy message, successful refresh status update, and quote-card fallback in the browser.
-- Summary: X AuthProfile status display and X quote-card consistency fix implemented without schema changes or new dependencies.
+- Date: 2026-06-10 23:06:58 CST
+- Current status: Repository is on private GitHub `main`; YouTube, Bilibili P0, and X P0 are usable. YouTube per-request proxy support is implemented locally for latest refresh, backfill, and playlist-tag sync.
+- What changed: YouTube connector functions now accept an optional per-request `proxyUrl`, use an undici dispatcher when it is an HTTP(S) proxy, and wrap YouTube network failures with Chinese guidance. `fetcher.ts` now passes the `resolveRefreshNetwork` proxy into YouTube refresh/backfill/tag sync.
+- Tests run: `node --test --experimental-strip-types --experimental-sqlite tests/proxy.test.ts` passed; `node --test --experimental-strip-types --experimental-sqlite tests/network.test.ts` passed; `npm test` passed with 128/128 tests; `npm run build` passed.
+- Known failures: No automated test failure observed. Real local YouTube hand verification is still pending in a dev shell without exported `HTTPS_PROXY`.
+- Next recommended task: Verify YouTube latest refresh, backfill, and playlist-tag sync against the affected source in the local browser.
+- Summary: YouTube network path aligned with X-style explicit proxy resolution without schema changes or new dependencies.

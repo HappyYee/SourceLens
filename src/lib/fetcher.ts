@@ -135,7 +135,7 @@ async function fetchForBinding(
     if (!binding.feedUrl?.trim()) {
       throw new Error("YouTube 绑定需要频道 ID（UC… 开头）或 feed URL");
     }
-    return fetchYouTube(binding.feedUrl, process.env.YOUTUBE_API_KEY);
+    return fetchYouTube(binding.feedUrl, process.env.YOUTUBE_API_KEY, ctx.proxyUrl);
   }
   if (binding.platform === "bilibili") {
     const mid = parseBilibiliInput(binding.feedUrl || "");
@@ -454,6 +454,7 @@ export async function backfillBinding(
       sourceInput,
       apiKey: process.env.YOUTUBE_API_KEY,
       limit: resolveBackfillLimit(limit),
+      proxyUrl: ctx.proxyUrl,
     });
     const { added, updated } = await upsertItems(binding, videos);
     const skippedCount = Math.max(0, fetchedCount - videos.length); // playlist 里有、videos.list 查不到(删/私密)
@@ -527,6 +528,7 @@ export async function syncPlaylistTagsForBinding(
     const { tagMap, playlistCount } = await fetchChannelPlaylistTags({
       sourceInput,
       apiKey: process.env.YOUTUBE_API_KEY,
+      proxyUrl: net.shouldUseProxy ? net.proxyUrl : undefined,
     });
     // 仅本 source 已导入的 youtube 视频
     const items = await prisma.item.findMany({

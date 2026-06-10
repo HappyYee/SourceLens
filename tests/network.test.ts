@@ -55,6 +55,13 @@ test("国外刷新：无 HTTPS_PROXY 时用默认代理并给出 warning", () =>
   assert.match(net.warning ?? "", /HTTPS_PROXY/);
 });
 
+test("YouTube 国外刷新：无代理环境变量时使用默认 http 代理", () => {
+  const net = resolveRefreshNetwork({ platform: "youtube", env: {} });
+  assert.equal(net.region, "foreign");
+  assert.equal(net.shouldUseProxy, true);
+  assert.equal(net.proxyUrl, "http://127.0.0.1:33210");
+});
+
 test("国内刷新：默认直连，不走代理", () => {
   const net = resolveRefreshNetwork({
     platform: "bilibili",
