@@ -73,6 +73,8 @@ export default function ItemCard({
   const tags = [...(it.youtubePlaylistTags ?? []), ...(it.platformTags ?? [])];
   const photos = (it.media ?? []).filter((m) => m.thumb);
   const links = it.linkCards ?? [];
+  const isXQuoteWithoutQuoteCard =
+    it.platform === "x" && it.postKind === "quote" && !links.some((c) => c.domain === "x.com");
   const thumbnailReferrerPolicy = it.platform === "bilibili" ? "no-referrer" : undefined;
 
   let media;
@@ -172,6 +174,10 @@ export default function ItemCard({
               </a>
             ))}
           </div>
+        ) : null}
+
+        {isXQuoteWithoutQuoteCard ? (
+          <div className="it-quote-fallback">引用了一条推文</div>
         ) : null}
 
         {tags.length > 0 ? (

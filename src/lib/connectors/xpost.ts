@@ -49,7 +49,7 @@ export interface RawTweet {
   isRepost: boolean;
   isQuote: boolean;
   isThread: boolean;
-  quoted: { text: string; author: string | null; url: string | null } | null;
+  quoted: { text: string; author: string | null; screen: string | null; url: string | null } | null;
   media: XMediaItem[];
   links: XLink[];
 }
@@ -138,6 +138,7 @@ function buildRawTweet(node: AnyObj, isThread: boolean): RawTweet | null {
       quoted = {
         text: str(qLegacy.full_text),
         author: qa.name,
+        screen: qa.screen,
         url: qa.screen && qId ? `https://x.com/${qa.screen}/status/${qId}` : null,
       };
     }
@@ -243,6 +244,17 @@ function parseTwitterDate(s: string): Date {
   return Number.isNaN(+d) ? new Date() : d;
 }
 
+function stripTrailingTco(text: string): string {
+  return text.replace(/(?:\s+https?:\/\/t\.co\/\w+)+\s*$/i, "").trim();
+}
+
+function quoteTitle(q: NonNullable<RawTweet["quoted"]>): string {
+  const text = q.text.replace(/\s+/g, " ").trim();
+  if (q.screen) return `引用 @${q.screen}${text ? `：${text}` : ""}`.slice(0, 100);
+  if (q.author) return `引用 ${q.author}${text ? `：${text}` : ""}`.slice(0, 100);
+  return "引用了一条推文";
+}
+
 /** RawTweet → 标准 Item。externalId = postId。 */
 export function mapTweet(rt: RawTweet): NormalizedItem {
   const kind = classifyPostKind(rt);
@@ -250,19 +262,21 @@ export function mapTweet(rt: RawTweet): NormalizedItem {
   const tags: string[] = [];
   if (rt.isThread) tags.push("Thread");
   // 引用的推文作为一张卡片（被引用小卡片，P0 简化版）。
-  const links: XLink[] = [...rt.links];
+  const links: XLink[] = rt.quoted?.url
+    ? rt.links.filter((l) => l.url !== rt.quoted?.url)
+    : [...rt.links];
   if (rt.quoted && rt.quoted.url) {
-    const qa = rt.quoted.author ? ` @${rt.quoted.author}` : "";
     links.push({
       url: rt.quoted.url,
       domain: "x.com",
-      title: `引用${qa}：${rt.quoted.text}`.replace(/\s+/g, " ").trim().slice(0, 100),
+      title: quoteTitle(rt.quoted),
     });
   }
+  const excerpt = stripTrailingTco(rt.text.replace(/\s+/g, " ").trim()).slice(0, EXCERPT_MAX);
   return {
     externalId: rt.id,
     title: null, // X 无标题，交给规则拟题
-    excerpt: rt.text.replace(/\s+/g, " ").trim().slice(0, EXCERPT_MAX) || null,
+    excerpt: excerpt || null,
     url: `https://x.com/${screen}/status/${rt.id}`,
     thumbnailUrl: rt.media.find((m) => m.thumb)?.thumb ?? null,
     durationSec: null,

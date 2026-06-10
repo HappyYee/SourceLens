@@ -22,6 +22,7 @@ import { ruleTitle } from "./ai/title";
 import { inWindow } from "./view";
 import { assertDataDir } from "./storage";
 import {
+  formatOutcome,
   networkHint,
   resolveRefreshNetwork,
   type ProxyMode,
@@ -33,6 +34,8 @@ import type { NormalizedItem } from "./normalize";
 /** 刷新时的网络/登录上下文：通道（国内外+代理）+ 可选登录态 profile 目录。 */
 interface AuthCtx {
   net: RefreshNetwork;
+  authProfileId?: string;
+  refreshRegion: RefreshRegion;
   profileDir?: string;
   proxyUrl?: string;
   useProxy: boolean;
@@ -53,13 +56,42 @@ async function authCtxFor(platform: string): Promise<AuthCtx> {
     });
     return {
       net,
+      authProfileId: ap?.id,
+      refreshRegion: (ap?.refreshRegion as RefreshRegion) ?? "auto",
       profileDir: ap?.profileDir,
       useProxy: net.shouldUseProxy,
       proxyUrl: net.shouldUseProxy ? net.proxyUrl : undefined,
     };
   }
   const net = resolveRefreshNetwork({ platform });
-  return { net, useProxy: net.shouldUseProxy, proxyUrl: net.shouldUseProxy ? net.proxyUrl : undefined };
+  return {
+    net,
+    refreshRegion: "auto",
+    useProxy: net.shouldUseProxy,
+    proxyUrl: net.shouldUseProxy ? net.proxyUrl : undefined,
+  };
+}
+
+async function markAuthProfileLoggedIn(id: string | undefined, ctx: AuthCtx): Promise<void> {
+  if (!id) return;
+  try {
+    await prisma.authProfile.update({
+      where: { id },
+      data: {
+        status: "logged_in",
+        lastCheckedAt: new Date(),
+        lastResult: formatOutcome({
+          ok: true,
+          action: "check_auth",
+          platform: "x",
+          refreshRegion: ctx.refreshRegion,
+          networkLabel: ctx.net.humanLabel,
+        }),
+      },
+    });
+  } catch {
+    // 状态回写只用于清除误导性 UI，不影响抓取结果。
+  }
 }
 
 /** 通用回溯上限：50/100/300/all（all 给一个安全大上限）。 */
@@ -258,6 +290,7 @@ export async function refreshBinding(
       where: { id: binding.id },
       data: { lastFetchedAt: new Date(), lastError: null },
     });
+    if (binding.platform === "x") await markAuthProfileLoggedIn(ctx.authProfileId, ctx);
     return { bindingId, platform: binding.platform, added, updated, networkLabel: net.humanLabel };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -402,6 +435,7 @@ export async function backfillBinding(
         where: { id: binding.id },
         data: { lastFetchedAt: new Date(), lastError: null },
       });
+      await markAuthProfileLoggedIn(ctx.authProfileId, ctx);
       return {
         createdCount: added,
         updatedCount: updated,

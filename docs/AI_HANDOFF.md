@@ -71,18 +71,20 @@ Status: P0 usable.
 
 ### X
 
-Status: P0 can fetch real posts.
+Status: P0 can fetch real posts; login-state display fix has been implemented in code.
 
 - `@elonmusk` has been fetched successfully with 40 posts.
 - Code can parse text, image, video, link, and quote posts.
 - Replies and reposts are filtered by default.
-- Current issue: `AuthProfile` `checkLoginStatus` can misreport `expired`, while real refresh still works.
-- Next minimal fix: improve X login-state checking and show a friendly `SingletonLock` / profile-busy message.
+- `AuthProfile` `checkLoginStatus` no longer treats missing SPA account-menu UI as `expired`; uncertain states return `needs_check`.
+- `SingletonLock` / profile-busy launch errors now map to a friendly message instead of a long Chromium log.
+- Successful X refresh/backfill now marks the X `AuthProfile` as `logged_in` to clear stale expired UI.
+- Quote cards now dedupe quoted-tweet URLs, prefer quoted `screen_name` for titles, strip trailing bare `t.co` links from excerpts, and render a fallback quote line if no x.com quote card is present.
 
 ## 5. Current Known Problems
 
-- X `checkLoginStatus` can misreport `expired`.
-- X quote card extraction may still be incomplete.
+- Existing X Items already stored before the quote-card mapping fix are not rewritten automatically.
+- X login-state and profile-busy fixes still need real local profile hand verification in the Settings UI.
 - X Debug Panel is optional observability work, not the current blocker.
 - Remote Fetch Worker has not been implemented.
 - P1 availability / unavailable state has not been implemented.
@@ -90,15 +92,15 @@ Status: P0 can fetch real posts.
 
 ## 6. Current Next Task
 
-Recommended next task: fix X `AuthProfile` login-check misreporting.
+Recommended next task: hand-verify the X login-state and card display fixes in the local UI.
 
-Implementation direction:
+Verification direction:
 
-- Do not rely only on `x.com/home` plus account-menu selectors.
-- Treat explicit `/login` and `/i/flow/login` navigation as strong expired signals.
-- Return `needs_check` when the state is uncertain instead of claiming `expired`.
-- When X refresh succeeds, allow the profile status to be marked `logged_in`.
-- Map `SingletonLock` / profile-busy errors to a friendly message: "X login window is still open. Finish login and close the window before checking or refreshing."
+- With a logged-in `x-main` profile, Settings -> X -> "检查登录状态" should show logged in, or `needs_check` only if genuinely uncertain.
+- With the X login window still open, check/refresh should show a friendly profile-busy message.
+- Refreshing the `@elonmusk` Source successfully should mark the X `AuthProfile` as `logged_in`.
+- Room timeline quote cards should either show a quoted x.com card or the fallback "引用了一条推文".
+- Consider an X Debug Panel later for deeper observability, but it is not required for this fix.
 
 ## 7. Role Split Between AIs
 
@@ -228,10 +230,10 @@ Web AI collaborators working read-only should not update this file unless the us
 ## 12. Last Updated
 
 - Updated by: Codex Local
-- Date: 2026-06-10 19:06:42 CST
-- Current status: Repository is pushed to private GitHub `main`; YouTube is usable, Bilibili P0 is usable, and X P0 can fetch real posts but login checking can misreport expired.
-- What changed: Upgraded this file into the unified AI collaboration context and added short pointers from `AGENTS.md` and `CLAUDE.md`.
-- Tests run: `npm test` passed with 119/119 tests during this handoff update; `npx prisma migrate status` reported the schema is up to date.
-- Known failures: No test failure observed. Known product issue remains X `checkLoginStatus` misreporting.
-- Next recommended task: Fix X `AuthProfile` login-state detection and profile-busy friendly messaging.
-- Summary: Multi-AI collaboration context normalized for ChatGPT Pro, Claude 20x, Codex, and Claude Cowork Pro.
+- Date: 2026-06-10 22:21:10 CST
+- Current status: Repository is on private GitHub `main`; YouTube is usable, Bilibili P0 is usable, and X P0 can fetch real posts. X login-state display and quote-card consistency fixes are implemented locally.
+- What changed: X login checking now returns `needs_check` instead of false `expired` when SPA UI is inconclusive; profile-busy errors are friendlier; X refresh/backfill success clears stale expired status; quote cards and trailing `t.co` excerpts were cleaned up; status/quote fallback CSS was added.
+- Tests run: `node --test --experimental-strip-types --experimental-sqlite tests/browser.test.ts` passed; `node --test --experimental-strip-types --experimental-sqlite tests/xpost.test.ts` passed; `npm test` passed with 126/126 tests; `npm run build` passed.
+- Known failures: No automated test failure observed. Real local X profile hand verification is still pending.
+- Next recommended task: Verify the X Settings login check, profile-busy message, successful refresh status update, and quote-card fallback in the browser.
+- Summary: X AuthProfile status display and X quote-card consistency fix implemented without schema changes or new dependencies.

@@ -139,8 +139,9 @@ test("引用推文进入 linkCards（被引用小卡片）", () => {
   assert.ok(quote.quoted);
   // quoted 没有 url（夹具未给 screen+id 同时齐全？）这里 BOB 有 screen，id=50 → 有 url
   const n = mapTweet(quote);
-  const cards = (n.linkCards as { url: string }[]) ?? [];
+  const cards = (n.linkCards as { url: string; title: string | null }[]) ?? [];
   assert.ok(cards.some((c) => /\/status\/50$/.test(c.url)));
+  assert.equal(cards.find((c) => /\/status\/50$/.test(c.url))?.title, "引用 @bob：被引用的原文");
 });
 
 test("tweetsToItems：一步到位，默认产出 5 条（去 reply/repost）", () => {
@@ -156,4 +157,84 @@ test("classifyPostKind：纯逻辑优先级（repost 高于一切）", () => {
     quoted: null, media: [{ type: "photo", thumb: "u" }], links: [{ url: "u", domain: "d", title: null }],
   };
   assert.equal(classifyPostKind(base), "repost");
+});
+
+function rawQuote(quoted: NonNullable<RawTweet["quoted"]>, links = quoted.url ? [
+  { url: quoted.url, domain: "x.com", title: "x.com/bob/status/50" },
+] : []): RawTweet {
+  return {
+    id: "q",
+    text: "看看这个 https://t.co/quoted",
+    createdAt: "Wed Oct 10 20:19:24 +0000 2018",
+    author: "Alice",
+    screenName: "alice",
+    isReply: false,
+    isRepost: false,
+    isQuote: true,
+    isThread: false,
+    quoted,
+    media: [],
+    links,
+  };
+}
+
+test("mapTweet：quote linkCard 去重，避免 entities.urls 与合成引用卡重复", () => {
+  const url = "https://x.com/bob/status/50";
+  const n = mapTweet(rawQuote(
+    { text: "原文", author: "Bob", screen: "bob", url },
+    [
+      { url, domain: "x.com", title: "x.com/bob/status/50" },
+      { url: "https://example.com/article", domain: "example.com", title: "example.com/article" },
+    ],
+  ));
+  const cards = (n.linkCards as { url: string }[]) ?? [];
+  assert.equal(cards.filter((c) => c.url === url).length, 1);
+  assert.ok(cards.some((c) => c.url === "https://example.com/article"));
+});
+
+test("mapTweet：引用标题使用 screen_name，无 screen 时不用 @，都没有时兜底", () => {
+  const withScreen = mapTweet(rawQuote({
+    text: "原文",
+    author: "Bob Display",
+    screen: "bob",
+    url: "https://x.com/bob/status/50",
+  }));
+  assert.equal((withScreen.linkCards as { title: string | null }[])[0].title, "引用 @bob：原文");
+
+  const withDisplayName = mapTweet(rawQuote({
+    text: "原文",
+    author: "Bob Display",
+    screen: null,
+    url: "https://x.com/i/status/50",
+  }));
+  assert.equal((withDisplayName.linkCards as { title: string | null }[])[0].title, "引用 Bob Display：原文");
+
+  const fallback = mapTweet(rawQuote({
+    text: "原文",
+    author: null,
+    screen: null,
+    url: "https://x.com/i/status/51",
+  }));
+  assert.equal((fallback.linkCards as { title: string | null }[])[0].title, "引用了一条推文");
+});
+
+test("mapTweet：excerpt 只剥离结尾裸 t.co，中段保留", () => {
+  const trailing: RawTweet = {
+    id: "t1",
+    text: "hello https://t.co/a1 https://t.co/b2",
+    createdAt: "",
+    author: null,
+    screenName: "alice",
+    isReply: false,
+    isRepost: false,
+    isQuote: false,
+    isThread: false,
+    quoted: null,
+    media: [],
+    links: [],
+  };
+  assert.equal(mapTweet(trailing).excerpt, "hello");
+
+  const middle = { ...trailing, id: "t2", text: "hello https://t.co/mid world https://t.co/end" };
+  assert.equal(mapTweet(middle).excerpt, "hello https://t.co/mid world");
 });

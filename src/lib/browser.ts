@@ -18,6 +18,7 @@ export type BrowserErrorCode =
   | "playwright_import"
   | "chrome_missing"
   | "profile_dir"
+  | "profile_busy"
   | "launch"
   | "navigate";
 
@@ -29,6 +30,26 @@ export class BrowserError extends Error {
     this.code = code;
     this.name = "BrowserError";
   }
+}
+
+export const X_EXPIRED_URL_RE = /\/(i\/flow\/login|login|account\/access)\b/i;
+const X_LOGGED_IN_UI_SELECTOR =
+  '[data-testid="SideNav_AccountSwitcher_Button"], [aria-label="Account menu"], [data-testid="AppTabBar_Profile_Link"]';
+const X_LOGGED_OUT_UI_SELECTOR = '[data-testid="loginButton"], [data-testid="signupButton"]';
+
+export function classifyXLoginSignal(s: {
+  url: string;
+  hasLoggedInUi: boolean;
+  hasLoggedOutUi: boolean;
+}): "logged_in" | "expired" | null {
+  if (X_EXPIRED_URL_RE.test(s.url)) return "expired";
+  if (s.hasLoggedInUi) return "logged_in";
+  if (s.hasLoggedOutUi) return "expired";
+  return null;
+}
+
+export function isProfileBusyError(msg: string): boolean {
+  return /SingletonLock|ProcessSingleton|in use|already running|cannot create/i.test(msg);
 }
 
 // —— 最小类型（避免把 playwright-core 重类型拉进签名；运行时才真正解析包） ——
@@ -89,8 +110,14 @@ function ensureProfileDir(dir: string): void {
   }
 }
 
-function mapLaunchError(e: unknown): BrowserError {
+export function mapLaunchError(e: unknown): BrowserError {
   const msg = e instanceof Error ? e.message : String(e);
+  if (isProfileBusyError(msg)) {
+    return new BrowserError(
+      "profile_busy",
+      `X/平台登录窗口可能仍在打开（浏览器 profile 被占用）：请完成登录并关闭窗口后再检查或刷新。（原始错误：${msg.slice(0, 120)}）`,
+    );
+  }
   if (/not found|not installed|no such file|ENOENT|executable doesn'?t exist|Failed to launch|Chromium distribution/i.test(msg)) {
     return new BrowserError(
       "chrome_missing",
@@ -149,11 +176,19 @@ export async function checkLoginStatus(p: {
     const page = await ctx.newPage();
     if (p.platform === "x") {
       await page.goto("https://x.com/home", { waitUntil: "domcontentloaded", timeout: 25000 });
-      if (/\/(i\/flow\/login|login)/i.test(page.url())) return { status: "expired" };
-      const acct = await page.$(
-        '[data-testid="SideNav_AccountSwitcher_Button"], [aria-label="Account menu"]',
-      );
-      return { status: acct ? "logged_in" : "expired" };
+      const deadline = Date.now() + 15_000;
+      while (Date.now() <= deadline) {
+        const status = classifyXLoginSignal({
+          url: page.url(),
+          hasLoggedInUi: !!(await page.$(X_LOGGED_IN_UI_SELECTOR)),
+          hasLoggedOutUi: !!(await page.$(X_LOGGED_OUT_UI_SELECTOR)),
+        });
+        if (status) return { status };
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) break;
+        await page.waitForTimeout(Math.min(500, remaining));
+      }
+      return { status: "needs_check" };
     }
     if (p.platform === "bilibili") {
       await page.goto("https://www.bilibili.com/", { waitUntil: "domcontentloaded", timeout: 25000 });
