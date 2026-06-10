@@ -1,0 +1,46 @@
+{
+  "name": "sourcelens",
+  "version": "0.1.0",
+  "private": true,
+  "description": "源镜 SourceLens — Follow sources, not feeds. 个人信源操作系统 (Attention OS) v0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "postinstall": "prisma generate",
+    "seed": "node prisma/seed-empty.mjs",
+    "seed:empty": "node prisma/seed-empty.mjs",
+    "seed:demo": "node prisma/seed.mjs",
+    "reset:user-data": "node prisma/reset-user-data.mjs",
+    "migrate:nodekind": "node prisma/migrate-node-kind.mjs",
+    "fetch": "node scripts/fetch.mjs",
+    "verify:youtube": "node scripts/verify-youtube.mjs",
+    "test": "node --test --experimental-strip-types --experimental-sqlite \"tests/**/*.test.ts\""
+  },
+  "prisma": {
+    "seed": "node prisma/seed-empty.mjs"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "next": "14.2.18",
+    "playwright-core": "^1.60.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "rss-parser": "^3.13.0",
+    "undici": "^6.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "prisma": "^5.22.0",
+    "tailwindcss": "^3.4.14",
+    "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

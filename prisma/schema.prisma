@@ -1,0 +1,104 @@
+// 源镜 SourceLens 数据模型 (spec §4)
+// 一个 Room = 一个关注对象；也可作为纯文件夹（无 binding）承载子 Room。
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// 用 parentId 自引用形成树，同时表达"分区"和"嵌套 Room"。
+model Room {
+  id         String          @id @default(cuid())
+  name       String
+  nodeKind   String          @default("room") // folder | room（结构类型：分区 vs 内容房间）
+  type       String? //                          roomType key（内容类型；folder 为 null）
+  importance Int             @default(3) //          1..5，由用户手动设定
+  parentId   String?
+  parent     Room?           @relation("RoomTree", fields: [parentId], references: [id])
+  children   Room[]          @relation("RoomTree")
+  sortOrder  Int             @default(0)
+  bindings   SourceBinding[]
+  items      Item[]
+  createdAt  DateTime        @default(now())
+}
+
+// 内容类型目录（roomType）。folder 不是 roomType，不入此表。
+model RoomType {
+  key         String   @id // 如 person / idol_member
+  displayName String //       如 人物 / 偶像成员
+  icon        String?
+  color       String?
+  sortOrder   Int      @default(0)
+  builtin     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+// 本机浏览器登录态（Playwright persistent context）。只读用途，绝不存 cookie 本体。
+model AuthProfile {
+  id            String    @id @default(cuid())
+  platform      String //                       x | bilibili
+  name          String
+  profileDir    String //                        独立 userDataDir（data/browser-profiles/…）
+  proxyMode     String    @default("none") //     none | system | manual
+  proxyUrl      String?
+  refreshRegion String    @default("auto") //     domestic | foreign | auto
+  status        String    @default("unknown") //  unknown | logged_in | expired | needs_check
+  lastResult    String? //                        最近一次检查的行内文案
+  lastCheckedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// 一个 Room 绑定多条平台 feed；每条 binding 是该对象在某平台的一个来源。
+model SourceBinding {
+  id            String    @id @default(cuid())
+  roomId        String
+  room          Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  platform      String // rss | arxiv | github | youtube | podcast | x | manual
+  feedUrl       String? //  已解析的 feed URL（rss/youtube/github/podcast）
+  query         String? //  arxiv 查询串，或其它标识
+  label         String?
+  enabled       Boolean   @default(true)
+  intervalMin   Int       @default(60)
+  lastFetchedAt DateTime?
+  lastError     String?
+  items         Item[]
+  createdAt     DateTime  @default(now())
+}
+
+// 标准化后的内容条目。publishedAt 是时间线归并的排序键。
+model Item {
+  id           String         @id @default(cuid())
+  bindingId    String? //       删除 Source 时置空(SetNull)，历史卡片作为档案保留
+  binding      SourceBinding? @relation(fields: [bindingId], references: [id], onDelete: SetNull)
+  roomId       String //        反范式，便于按 Room 查询时间线；删除 Room 时级联删除
+  room         Room          @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  platform     String
+  externalId   String //        平台原生 id / guid / link，用于去重
+  title        String? //       原始标题（有则存）
+  aiTitle      String? //       无标题时生成（规则或模型）
+  customTitle  String? //       用户自定义标题，重抓永不覆盖
+  titleSource  String? //       original | rule | custom | model
+  excerpt      String? //       简短摘要/简介（非全文）
+  url          String
+  thumbnailUrl String?
+  durationSec  Int?
+  author       String?
+  publishedAt  DateTime
+  fetchedAt    DateTime      @default(now())
+  raw          String? //       可选原始 JSON
+  youtubeKind  String? //       short | video | unknown（YouTube 视频类型）
+  youtubePlaylistTags String? // JSON 数组字符串，频道播放列表分类标签，如 ["宏观经济","美股入门"]
+  videoKind    String? //       short | video | unknown（通用视频类型：Bilibili 等）
+  postKind     String? //       text|image|video|link|quote|reply|repost|thread|unknown（X 等帖子类型）
+  platformTags String? //       JSON 数组：通用平台标签（B 站合集/分区/标签 等）
+  media        String? //       JSON：媒体（图片/视频缩略图，不下载文件）
+  linkCards    String? //       JSON：外链卡片（domain/标题/url）
+
+  @@unique([roomId, externalId]) // 去重：同一 Room 内同一对象不重复（跨 Room 独立存在）
+  @@index([roomId, publishedAt])
+}

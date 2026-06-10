@@ -1,0 +1,61 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+
+# Dependencies
+node_modules/
+
+# Next.js / frontend builds
+.next/
+out/
+dist/
+build/
+.nuxt/
+.vite/
+
+# Test and cache output
+coverage/
+.cache/
+*.log
+*.tmp
+*.bak
+*.backup
+tsconfig.tsbuildinfo
+
+# Local data and browser profiles
+data/db/
+data/browser-profiles/
+data/exports/
+data/cache/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+prisma/*.db
+prisma/*.db-journal
+prisma/*.sqlite
+prisma/*.sqlite3
+
+# AI / editor local configuration
+.claude/
+.codex/
+.vscode/settings.json
+.idea/
+*.iml
+
+# Platform build directories
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+ios/Pods/
+android/.gradle/
+.gradle/
+target/
+
+# System files
+.DS_Store
