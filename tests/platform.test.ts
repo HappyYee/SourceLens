@@ -5,10 +5,12 @@ import { parseXInput } from "../src/lib/connectors/xpost.ts";
 import { bilibiliAdapter } from "../src/lib/platform/bilibili.ts";
 import { getAdapter } from "../src/lib/platform/registry.ts";
 import { xAdapter } from "../src/lib/platform/x.ts";
+import { youtubeAdapter } from "../src/lib/platform/youtube.ts";
 
-test("registry：注册 x / bilibili adapter，rss/manual 仍无 adapter", () => {
+test("registry：注册 x / bilibili / youtube adapter，rss/manual 仍无 adapter", () => {
   assert.equal(getAdapter("x"), xAdapter);
   assert.equal(getAdapter("bilibili"), bilibiliAdapter);
+  assert.equal(getAdapter("youtube"), youtubeAdapter);
   assert.equal(getAdapter("rss"), undefined);
   assert.equal(getAdapter("manual"), undefined);
 });
@@ -79,5 +81,35 @@ test("bilibili adapter：输入错误文案保持不变", async () => {
   await assert.rejects(
     () => bilibiliAdapter.refreshLatest("not a mid", { useProxy: false }),
     /无法解析 B 站 UP 主：请填 mid 或 space\.bilibili\.com\/\{mid\} 链接/,
+  );
+});
+
+test("youtube adapter：resolveSourceInput 支持 UC ID / handle / 链接", () => {
+  const channelId = "UCuAXFkgsw1L7xaCfnd5JJOw";
+  assert.equal(youtubeAdapter.resolveSourceInput(channelId), channelId);
+  assert.equal(youtubeAdapter.resolveSourceInput("@MeiTouJun"), "@MeiTouJun");
+  assert.equal(youtubeAdapter.resolveSourceInput("https://www.youtube.com/@MeiTouJun"), "@MeiTouJun");
+  assert.equal(youtubeAdapter.resolveSourceInput("not a youtube source"), null);
+});
+
+test("youtube adapter：apiKey optional，支持 tagsSync，红线能力关闭", () => {
+  assert.equal(youtubeAdapter.checkAuthRequirement(), "apiKeyOptional");
+  const cap = youtubeAdapter.getCapabilities();
+  assert.equal(cap.latestRefresh, true);
+  assert.equal(cap.backfill, true);
+  assert.equal(cap.tagsSync, true);
+  assert.equal(cap.authRequired, false);
+  assert.equal(cap.authOptional, false);
+  assert.equal(cap.mediaSupport, false);
+  assert.equal(cap.debugSupport, false);
+  assert.equal(cap.commentsSupported, false);
+  assert.equal(cap.downloadsSupported, false);
+  assert.equal(cap.writesSupported, false);
+});
+
+test("youtube adapter：空 source 文案保持不变", async () => {
+  await assert.rejects(
+    () => youtubeAdapter.refreshLatest("", { useProxy: true, proxyUrl: "http://127.0.0.1:33210" }),
+    /YouTube 绑定需要频道 ID（UC… 开头）或 feed URL/,
   );
 });

@@ -98,12 +98,13 @@ Status: P0 can fetch real posts; login-state display and emoji-safe write path h
 
 ## 6. Current Next Task
 
-Recommended next task: Phase 1 Task C, migrate YouTube into the `PlatformAdapter` registry and bring sync-tags into that boundary after the user provides the Task C prompt.
+Recommended next task: Phase 1 Task D, add thin feed adapters and finish the `fetchForBinding` platform switch cleanup after the user provides the Task D prompt.
 
 Follow-up direction:
 
-- X and Bilibili now have `PlatformAdapter` implementations and registry entries.
-- Move YouTube latest/backfill/tag sync into the same adapter boundary without changing proxy behavior or API-key semantics.
+- X, Bilibili, and YouTube now have `PlatformAdapter` implementations and registry entries.
+- Move RSS/podcast/GitHub/arXiv feed-style sources into thin adapters.
+- Derive fetchability from the registry after feeds are migrated, then remove the remaining `fetchForBinding` if-chain.
 - Preserve the working Phase 0 behavior for YouTube, Bilibili, and X.
 - Carry `truncate()` or its successor into the future `NormalizedItem` validation boundary before DB writes.
 - Do not start schema migrations unless the user explicitly provides a migration prompt.
@@ -237,11 +238,11 @@ Web AI collaborators working read-only should not update this file unless the us
 ## 12. Last Updated
 
 - Updated by: Codex Local
-- Date: 2026-06-11 01:51:26 CST
-- Current status: Repository is on private GitHub `main`; Phase 1 Task B is implemented locally. X and Bilibili latest refresh/backfill now route through `PlatformAdapter` + registry while YouTube, feeds, schema, UI, and connector internals remain unchanged.
-- What changed: Added `src/lib/platform/bilibili.ts`; registered the Bilibili adapter; generalized `fetcher.ts` latest-refresh adapter dispatch; moved Bilibili backfill dispatch through the registry; kept Bilibili auth as optional fallback (`checkAuthRequirement() === "none"`) so public fetch success does not mark the Bilibili profile logged in; expanded platform adapter tests.
-- Tests run: `node --test --experimental-strip-types --experimental-sqlite tests/platform.test.ts` passed; `npm test` passed with 142/142 tests; `npm run build` passed.
-- Verification results: Bilibili latest passed with `added=0`, `updated=50`, `failedCount=0`, `networkLabel=国内刷新`; Bilibili backfill passed with `createdCount=0`, `updatedCount=50`, `failedCount=0`, `fetchedCount=50`, `pageCount=1`, `hasMore=true`, `shortsCount=11`; Bilibili stayed at `totalExternalIds=50` and `distinctExternalIds=50`; Bilibili AuthProfile was not refreshed/rewritten by public fetch success; X latest initially had the same transient failed API result observed in Task A, then retry passed with `updated=40`, `failedCount=0`; YouTube refresh passed with `updated=15`, `failedCount=0`.
-- Known failures: No active Phase 0 P0 blocker observed. Existing X Items outside the verified `@elonmusk` backfill window may still need a future refresh/backfill to receive newer quote-card normalization. X latest can still have occasional transient SPA/network failures that pass on retry; leave deeper stage reporting for Task E.
-- Next recommended task: Wait for the user's Phase 1 Task C prompt, then migrate YouTube into the adapter registry and bring sync-tags into that boundary.
-- Summary: Phase 1 adapter boundary now covers X and Bilibili, preserving Bilibili fallback behavior and counts while removing Bilibili-specific refresh/backfill logic from the fetcher switch.
+- Date: 2026-06-11 02:54:10 CST
+- Current status: Repository is on private GitHub `main`; Phase 1 Task C is implemented locally. X, Bilibili, and YouTube latest refresh now route through `PlatformAdapter` + registry; YouTube backfill and sync-tags also go through the YouTube adapter while feed-style sources, schema, UI, and connector internals remain unchanged.
+- What changed: Added `src/lib/platform/youtube.ts`; extended `PlatformAdapter` with optional `syncTags`; registered the YouTube adapter; removed the dedicated YouTube latest branch from `fetcher.ts`; routed YouTube backfill and playlist tag fetching through the adapter; kept tag assignment and `youtubePlaylistTags` persistence in `fetcher.ts`; expanded platform adapter tests. `connectors/index.ts` and `connectors/youtube.ts` were not modified.
+- Tests run: `node --test --experimental-strip-types --experimental-sqlite tests/platform.test.ts` passed; `npm test` passed with 145/145 tests; `npm run build` passed.
+- Verification results: YouTube latest passed with `added=0`, `updated=15`, `failedCount=0`, `networkLabel=国外刷新`; YouTube backfill passed with `createdCount=0`, `updatedCount=50`, `failedCount=0`, `skippedCount=0`, `fetchedCount=50`, `pageCount=1`, `hasMore=true`, `shortsCount=0`, `playlistTaggedCount=49`; YouTube sync-tags passed with `taggedCount=49`, `playlistCount=20`; Bilibili latest passed with `updated=50`, `failedCount=0`; X latest passed on first try with `added=1`, `updated=39`, `failedCount=0`, so no transient X `lastError` was recorded this round. Final counts: YouTube `totalExternalIds=50/distinct=50`, Bilibili `50/50`, X `101/101`.
+- Known failures: No active Phase 0 P0 blocker observed. Existing X Items outside the verified `@elonmusk` backfill window may still need a future refresh/backfill to receive newer quote-card normalization. X latest can still have occasional transient SPA/network failures that pass on retry; record `binding.lastError` in this file whenever it recurs before Task E lands.
+- Next recommended task: Wait for the user's Phase 1 Task D prompt, then migrate feed-style adapters and derive fetchability from the registry.
+- Summary: Phase 1 adapter boundary now covers X, Bilibili, and YouTube, including YouTube sync-tags, while preserving the YouTube proxy/API-key behavior and connector internals.

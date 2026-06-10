@@ -2,12 +2,9 @@
 // 重要：按 (roomId, externalId) 去重；只新增/更新元数据，从不因源头删除而删本地条目，customTitle 永不覆盖。
 import { prisma } from "./db";
 import {
-  backfillYouTubeChannel,
-  fetchChannelPlaylistTags,
   FETCHABLE,
   fetchArxivPaged,
   fetchFeed,
-  fetchYouTube,
   resolveFeedUrl,
 } from "./connectors";
 import {
@@ -142,12 +139,6 @@ async function fetchForBinding(
       useProxy: ctx.useProxy,
     });
     return out.items;
-  }
-  if (binding.platform === "youtube") {
-    if (!binding.feedUrl?.trim()) {
-      throw new Error("YouTube 绑定需要频道 ID（UC… 开头）或 feed URL");
-    }
-    return fetchYouTube(binding.feedUrl, process.env.YOUTUBE_API_KEY, ctx.proxyUrl);
   }
   if (binding.platform === "arxiv" && binding.query && window?.deep) {
     return fetchArxivPaged(binding.query, window.since);
@@ -468,16 +459,16 @@ export async function backfillBinding(
       };
     }
 
-    // youtube
-    const { videos, fetchedCount, pageCount, hasMore } = await backfillYouTubeChannel({
-      sourceInput,
-      apiKey: process.env.YOUTUBE_API_KEY,
-      limit: resolveBackfillLimit(limit),
+    const adapter = getAdapter("youtube");
+    if (!adapter?.backfill) throw new Error("YouTube adapter 未注册");
+    const out = await adapter.backfill(sourceInput, resolveBackfillLimit(limit), {
+      profileDir: ctx.profileDir,
       proxyUrl: ctx.proxyUrl,
+      useProxy: ctx.useProxy,
     });
-    const { added, updated, failed } = await upsertItems(binding, videos);
-    const skippedCount = Math.max(0, fetchedCount - videos.length); // playlist 里有、videos.list 查不到(删/私密)
-    const shortsCount = videos.filter((v) => v.youtubeKind === "short").length;
+    const { added, updated, failed } = await upsertItems(binding, out.items);
+    const skippedCount = Math.max(0, (out.rawCount ?? 0) - out.items.length); // playlist 里有、videos.list 查不到(删/私密)
+    const shortsCount = out.items.filter((v) => v.youtubeKind === "short").length;
     await prisma.sourceBinding.update({
       where: { id: binding.id },
       data: {
@@ -505,9 +496,9 @@ export async function backfillBinding(
       updatedCount: updated,
       failedCount: failed || undefined,
       skippedCount,
-      fetchedCount,
-      pageCount,
-      hasMore,
+      fetchedCount: out.rawCount ?? 0,
+      pageCount: out.pageCount ?? 0,
+      hasMore: out.hasMore ?? false,
       shortsCount,
       playlistTaggedCount,
       networkLabel: net.humanLabel,
@@ -555,10 +546,11 @@ export async function syncPlaylistTagsForBinding(
 
   const net = resolveRefreshNetwork({ platform: binding.platform });
   try {
-    const { tagMap, playlistCount } = await fetchChannelPlaylistTags({
-      sourceInput,
-      apiKey: process.env.YOUTUBE_API_KEY,
+    const adapter = getAdapter("youtube");
+    if (!adapter?.syncTags) throw new Error("YouTube adapter 未注册");
+    const { tagMap, playlistCount } = await adapter.syncTags(sourceInput, {
       proxyUrl: net.shouldUseProxy ? net.proxyUrl : undefined,
+      useProxy: net.shouldUseProxy,
     });
     // 仅本 source 已导入的 youtube 视频
     const items = await prisma.item.findMany({

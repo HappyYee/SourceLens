@@ -35,4 +35,8 @@ export interface PlatformAdapter {
   resolveSourceInput(raw: string): string | null;
   refreshLatest(rawInput: string, ctx: ExecCtx): Promise<FetchOutput>;
   backfill?(rawInput: string, limit: number, ctx: ExecCtx): Promise<FetchOutput>;
+  syncTags?(
+    rawInput: string,
+    ctx: ExecCtx,
+  ): Promise<{ tagMap: Map<string, string[]>; playlistCount: number }>;
 }
