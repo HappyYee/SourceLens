@@ -1,86 +1,237 @@
-# AI Handoff
+# SourceLens AI Handoff
 
-This is the first file every AI collaborator should read.
+## 0. Purpose
 
-## Current Project State
+This file is the shared context file for ChatGPT Pro, Claude 20x, Codex, and Claude Cowork Pro.
 
-SourceLens is a local-first personal information console built around Rooms. A Room represents a person, company, lab, or project and combines multiple source bindings into a chronological timeline of launcher cards.
+All AI collaborators must read this file before acting. Local executors must update it after meaningful local work so the next AI starts from the same facts.
 
-Current platform state:
+## 1. Project Identity
 
-- YouTube: usable.
-- Bilibili: P0 usable. Recent fixes made browser-profile fallback work and Bilibili thumbnails display correctly.
-- X: P0 can fetch `@elonmusk` posts through a local logged-in browser profile. Known issue: X login check can misreport `expired` even when refresh succeeds.
-- RSS / Atom, arXiv, GitHub, podcast RSS, and manual items exist in the codebase.
+SourceLens is a personal source-first information system. It helps the user follow sources they explicitly choose instead of accepting platform recommendation feeds.
 
-## Main Goal
+Core product objects:
 
-Prepare SourceLens for safe private GitHub synchronization and multi-AI collaboration, while keeping local secrets, database files, and browser profiles out of version control.
+- Folder: a structural section for organizing rooms.
+- Room: one attention object, such as a person, company, lab, project, or topic.
+- Source: one platform/feed attached to a Room.
+- Item: one normalized timeline card from a source.
+- Timeline: Room items merged by timestamp.
 
-## Completed
+SourceLens is designed around user-controlled sources, not platform ranking. Captured content is part of the user's local information profile. Do not fake Rooms, Sources, or Items to make a feature appear complete. Do not upload `.env`, `data/db`, or `data/browser-profiles`.
 
-- Core Room/source/timeline model exists.
-- Prisma + SQLite persistence exists.
-- YouTube fetching and enrichment paths exist.
-- Bilibili P0 works with login fallback and thumbnail handling.
-- X P0 can collect posts into the UI from a local logged-in profile.
-- Tests currently pass with `npm test`.
+## 2. Current Tech Stack
 
-## Todo
+- Next.js 14 App Router
+- React
+- TypeScript
+- Prisma
+- SQLite
+- Playwright / `playwright-core`
+- `undici`
+- `rss-parser`
+- Node >= 20
 
-- Fix X login status check misreporting `expired`.
-- Improve profile-busy error messages for X.
-- Consider adding an X Debug Panel later for observability.
-- Keep repository hygiene strict before public sharing.
-- Add GitHub Issues for focused follow-up tasks.
+## 3. Core Architecture
 
-## Known Issues
+- Folder: a structural partition. It organizes the sidebar/tree and does not collect content directly.
+- Room: a content room. It owns source bindings and shows a unified timeline.
+- RoomType: user-defined or built-in content type metadata for Rooms.
+- SourceBinding: one platform/source configuration attached to one Room.
+- Item: a normalized timeline card, with platform metadata, media, links, timestamps, and dedupe keys.
+- AuthProfile: a local browser login profile for platforms that need user-owned login state.
+- `data/db`: local SQLite storage. It is private local data and must not be uploaded.
+- `data/browser-profiles`: local Playwright/Chromium login state. It is private local auth state and must not be uploaded.
 
-- X AuthProfile check can say "expired" while real refresh succeeds.
-- Quote posts from X are preserved, but quoted URL/card extraction may need improvement.
-- Browser-profile workflows require the login window to be closed before headless checks or refreshes.
-- Local data and browser profiles are private and must not be committed.
+## 4. Platform Status
 
-## Run Commands
+### YouTube
+
+Status: usable.
+
+- Supports `@handle`, channel links, and `UC...` channel IDs.
+- Supports latest refresh.
+- Supports backfill.
+- Supports normal videos and Shorts.
+- Playlists are used as tags, not as timeline cards.
+- Dedupe key is `externalId=videoId`.
+- `customTitle` is not overwritten by refreshes.
+
+### Bilibili
+
+Status: P0 usable.
+
+- UP owner public videos can be fetched.
+- Logged-in browser-profile fallback is working for current tested cases.
+- WBI `wts` duplicate-append bug has been fixed.
+- Thumbnail hotlink/referrer issue has been handled with `referrerPolicy=no-referrer`.
+- Real Bilibili Items exist in the local database.
+- Do not add downloader behavior.
+- Do not add comments, danmaku, dynamic posts, articles, or columns in the current P0 lane.
+
+### X
+
+Status: P0 can fetch real posts.
+
+- `@elonmusk` has been fetched successfully with 40 posts.
+- Code can parse text, image, video, link, and quote posts.
+- Replies and reposts are filtered by default.
+- Current issue: `AuthProfile` `checkLoginStatus` can misreport `expired`, while real refresh still works.
+- Next minimal fix: improve X login-state checking and show a friendly `SingletonLock` / profile-busy message.
+
+## 5. Current Known Problems
+
+- X `checkLoginStatus` can misreport `expired`.
+- X quote card extraction may still be incomplete.
+- X Debug Panel is optional observability work, not the current blocker.
+- Remote Fetch Worker has not been implemented.
+- P1 availability / unavailable state has not been implemented.
+- Backup script has not been implemented.
+
+## 6. Current Next Task
+
+Recommended next task: fix X `AuthProfile` login-check misreporting.
+
+Implementation direction:
+
+- Do not rely only on `x.com/home` plus account-menu selectors.
+- Treat explicit `/login` and `/i/flow/login` navigation as strong expired signals.
+- Return `needs_check` when the state is uncertain instead of claiming `expired`.
+- When X refresh succeeds, allow the profile status to be marked `logged_in`.
+- Map `SingletonLock` / profile-busy errors to a friendly message: "X login window is still open. Finish login and close the window before checking or refreshing."
+
+## 7. Role Split Between AIs
+
+### ChatGPT Pro
+
+- Product and architecture judgment.
+- Prompt design.
+- Multi-AI coordination.
+- Requirement decomposition.
+- Review Claude/Codex output before risky work.
+
+### Claude 20x Web / Claude Code
+
+- Read GitHub context.
+- Understand large context and propose broad plans.
+- Produce complete patch plans.
+- Perform code review.
+- Do not depend on local `.env`, `data/db`, or `data/browser-profiles`.
+- Do not claim real platform verification unless a local executor actually ran it.
+
+### Codex Local
+
+- Local execution.
+- Run real `npm test` / `npm run build`.
+- Debug real Bilibili / X / Playwright behavior when requested.
+- Update `docs/AI_HANDOFF.md` after meaningful local work.
+- Commit and push when requested and safe.
+- Do not read cookies or `.env`.
+
+### Claude Cowork Pro Local
+
+- Local collaborative code editing.
+- Best for UI work and small to medium fixes.
+- Can read the local project.
+- Must read `docs/AI_HANDOFF.md` before acting.
+- Must update `docs/AI_HANDOFF.md` after meaningful local work.
+- Should not edit the same batch of files at the same time as Codex.
+
+## 8. Safety Rules
+
+- Do not read `.env`.
+- Do not print API keys.
+- Do not read Cookies files.
+- Do not print cookies.
+- Do not upload `data/db`.
+- Do not upload `data/browser-profiles`.
+- Do not run `npm run reset:user-data` unless the user explicitly requests it.
+- Do not run `npm run seed` or `npm run seed:demo` unless the user explicitly requests it.
+- Do not perform platform write actions: posting, liking, reposting, commenting, following, private messaging, coin/tip/vote actions, or similar.
+- Do not download X or Bilibili video files.
+- Do not force push.
+- Do not rewrite remote repository history.
+- Do not casually upgrade Prisma major versions.
+- Do not run `npm audit fix --force`.
+
+## 9. Local Commands
+
+Install dependencies:
 
 ```bash
 npm install
+# or
+npm ci
+```
+
+Database setup:
+
+```bash
 npx prisma migrate dev
 npx prisma generate
+```
+
+Run locally:
+
+```bash
 npm run dev
 ```
 
-## Test Commands
+Test and build:
 
 ```bash
 npm test
 npm run build
 ```
 
-## Important Safety Notes
+Data scripts:
 
-- Never read or print `.env`.
-- Never read Cookies, Local Storage, browser profile databases, or session files.
-- Never commit `data/db/`, `data/browser-profiles/`, `.next/`, `node_modules/`, or generated caches.
-- Never run `reset:user-data` or seed scripts unless the user explicitly asks.
-- Never perform platform write actions.
+```bash
+npm run reset:user-data
+```
 
-## Recent Important Change
+Danger: resets local user data. Run only when the user explicitly requests it.
 
-Repository-initialization documentation and ignore rules were added so SourceLens can be safely synchronized to a private GitHub repository.
+```bash
+npm run seed:empty
+```
 
-## Next Recommended Task
+Changes local database contents. Run only when the user explicitly requests it.
 
-Fix X AuthProfile status checking so a working profile is not shown as expired. Add friendlier profile-busy messages for X.
+```bash
+npm run seed:demo
+```
 
-## Prompt for Claude 20x
+Danger: writes demo/sample data. Run only when the user explicitly requests it.
 
-Review SourceLens as a source-first Attention OS. Focus on architecture, task decomposition, and review. Do not suggest reading `.env`, cookies, or browser profile data. For implementation tasks, provide goals, files, steps, acceptance criteria, test commands, and risks.
+## 10. GitHub / Repo Rules
 
-## Prompt for Codex
+- GitHub repo: https://github.com/HappyYee/SourceLens
+- Main branch: `main`
+- Repository visibility: private for now.
+- Do not commit `.env`, `data/`, `node_modules/`, `.next/`, local databases, browser profiles, or generated caches.
+- After local execution work, update `docs/AI_HANDOFF.md` when the shared state changes, then commit and push if the user asks.
 
-Work in small scoped patches. Read this file, `README.md`, and `docs/ARCHITECTURE.md` before edits. Do not touch local secrets or profile data. Run focused tests and update this handoff after meaningful work.
+## 11. Update Protocol
 
-## Prompt for ChatGPT Pro Reviewer
+Every local AI executor must update this file after meaningful actual work. Update:
 
-Review changes for security, local-data hygiene, browser-profile safety, source fetching correctness, UI regressions, test gaps, and whether the implementation stays source-first rather than feed/recommendation-driven.
+- Last updated
+- Current status
+- What changed
+- Tests run
+- Known failures
+- Next recommended task
+
+Web AI collaborators working read-only should not update this file unless the user explicitly asks.
+
+## 12. Last Updated
+
+- Updated by: Codex Local
+- Date: 2026-06-10 19:06:42 CST
+- Current status: Repository is pushed to private GitHub `main`; YouTube is usable, Bilibili P0 is usable, and X P0 can fetch real posts but login checking can misreport expired.
+- What changed: Upgraded this file into the unified AI collaboration context and added short pointers from `AGENTS.md` and `CLAUDE.md`.
+- Tests run: `npm test` passed with 119/119 tests during this handoff update; `npx prisma migrate status` reported the schema is up to date.
+- Known failures: No test failure observed. Known product issue remains X `checkLoginStatus` misreporting.
+- Next recommended task: Fix X `AuthProfile` login-state detection and profile-busy friendly messaging.
+- Summary: Multi-AI collaboration context normalized for ChatGPT Pro, Claude 20x, Codex, and Claude Cowork Pro.

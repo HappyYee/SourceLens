@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+Before acting, read docs/AI_HANDOFF.md.
+
 Guidance for Claude when helping with SourceLens.
 
 ## Role

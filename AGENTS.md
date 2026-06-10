@@ -1,5 +1,7 @@
 # AGENTS.md
 
+Before acting, read docs/AI_HANDOFF.md.
+
 Rules for Codex and other code-executing AI agents working in SourceLens.
 
 ## Read First
