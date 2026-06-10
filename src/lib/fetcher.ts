@@ -21,6 +21,7 @@ import { parseXInput } from "./connectors/xpost";
 import { ruleTitle } from "./ai/title";
 import { inWindow } from "./view";
 import { assertDataDir } from "./storage";
+import { truncate } from "./text.ts";
 import {
   formatOutcome,
   networkHint,
@@ -113,6 +114,7 @@ export interface RefreshResult {
   platform: string;
   added: number;
   updated: number;
+  failedCount?: number;
   error?: string;
   networkLabel?: string;
   hint?: string;
@@ -176,6 +178,10 @@ function jsonOrNull(v: unknown): string | null {
   return JSON.stringify(v);
 }
 
+function writeFailureWarning(failed: number): string | null {
+  return failed > 0 ? `${failed} 条写入失败（详见服务端日志）` : null;
+}
+
 /**
  * 按 (roomId, externalId) 去重写入：不存在则新建，存在则只更新有值的元数据。
  * 永不写入 customTitle / titleSource(custom)；不因某次返回缺失而清空原字段。
@@ -183,9 +189,10 @@ function jsonOrNull(v: unknown): string | null {
 async function upsertItems(
   binding: { id: string; roomId: string; platform: string },
   items: NormalizedItem[],
-): Promise<{ added: number; updated: number }> {
+): Promise<{ added: number; updated: number; failed: number }> {
   let added = 0;
   let updated = 0;
+  let failed = 0;
   for (const it of items) {
     try {
       const aiTitle = !it.title && it.excerpt ? ruleTitle(it.excerpt) : null;
@@ -260,11 +267,15 @@ async function upsertItems(
         });
         added += 1;
       }
-    } catch {
-      // 单条失败（并发竞态等）不影响整体
+    } catch (e) {
+      failed += 1;
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(
+        `[upsert] ${binding.platform} item 写入失败 externalId=${it.externalId}: ${truncate(msg, 120)}`,
+      );
     }
   }
-  return { added, updated };
+  return { added, updated, failed };
 }
 
 /** 抓取单条 binding，按窗口过滤后去重写入。 */
@@ -285,18 +296,28 @@ export async function refreshBinding(
     const items = fetched.filter((it) =>
       inWindow(it.publishedAt, window?.since, window?.until),
     );
-    const { added, updated } = await upsertItems(binding, items);
+    const { added, updated, failed } = await upsertItems(binding, items);
     await prisma.sourceBinding.update({
       where: { id: binding.id },
-      data: { lastFetchedAt: new Date(), lastError: null },
+      data: {
+        lastFetchedAt: new Date(),
+        lastError: writeFailureWarning(failed),
+      },
     });
     if (binding.platform === "x") await markAuthProfileLoggedIn(ctx.authProfileId, ctx);
-    return { bindingId, platform: binding.platform, added, updated, networkLabel: net.humanLabel };
+    return {
+      bindingId,
+      platform: binding.platform,
+      added,
+      updated,
+      failedCount: failed || undefined,
+      networkLabel: net.humanLabel,
+    };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await prisma.sourceBinding.update({
       where: { id: binding.id },
-      data: { lastError: msg.slice(0, 300) },
+      data: { lastError: truncate(msg, 300) },
     });
     return {
       bindingId,
@@ -350,6 +371,7 @@ export async function refreshDue(opts?: {
 export interface BackfillCounts {
   createdCount: number;
   updatedCount: number;
+  failedCount?: number;
   skippedCount: number;
   fetchedCount: number;
   pageCount: number;
@@ -400,15 +422,19 @@ export async function backfillBinding(
         limit: clampBackfillLimit(limit, 2000),
         channel: { useProxy: ctx.useProxy, proxyUrl: ctx.proxyUrl, profileDir: ctx.profileDir },
       });
-      const { added, updated } = await upsertItems(binding, videos);
+      const { added, updated, failed } = await upsertItems(binding, videos);
       const shortsCount = videos.filter((v) => v.videoKind === "short").length;
       await prisma.sourceBinding.update({
         where: { id: binding.id },
-        data: { lastFetchedAt: new Date(), lastError: null },
+        data: {
+          lastFetchedAt: new Date(),
+          lastError: writeFailureWarning(failed),
+        },
       });
       return {
         createdCount: added,
         updatedCount: updated,
+        failedCount: failed || undefined,
         skippedCount: 0,
         fetchedCount,
         pageCount,
@@ -430,15 +456,19 @@ export async function backfillBinding(
         proxyUrl: ctx.proxyUrl,
         targetCount: target,
       });
-      const { added, updated } = await upsertItems(binding, videos);
+      const { added, updated, failed } = await upsertItems(binding, videos);
       await prisma.sourceBinding.update({
         where: { id: binding.id },
-        data: { lastFetchedAt: new Date(), lastError: null },
+        data: {
+          lastFetchedAt: new Date(),
+          lastError: writeFailureWarning(failed),
+        },
       });
       await markAuthProfileLoggedIn(ctx.authProfileId, ctx);
       return {
         createdCount: added,
         updatedCount: updated,
+        failedCount: failed || undefined,
         skippedCount: 0,
         fetchedCount: scannedCount,
         pageCount: 0,
@@ -456,12 +486,15 @@ export async function backfillBinding(
       limit: resolveBackfillLimit(limit),
       proxyUrl: ctx.proxyUrl,
     });
-    const { added, updated } = await upsertItems(binding, videos);
+    const { added, updated, failed } = await upsertItems(binding, videos);
     const skippedCount = Math.max(0, fetchedCount - videos.length); // playlist 里有、videos.list 查不到(删/私密)
     const shortsCount = videos.filter((v) => v.youtubeKind === "short").length;
     await prisma.sourceBinding.update({
       where: { id: binding.id },
-      data: { lastFetchedAt: new Date(), lastError: null },
+      data: {
+        lastFetchedAt: new Date(),
+        lastError: writeFailureWarning(failed),
+      },
     });
     // 导入后自动同步一次播放列表标签（best-effort；syncPlaylistTagsForBinding 会自行更新 binding 状态）
     let playlistTaggedCount = 0;
@@ -471,9 +504,17 @@ export async function backfillBinding(
     } catch {
       // 标签同步失败不影响 backfill 主结果
     }
+    const warning = writeFailureWarning(failed);
+    if (warning) {
+      await prisma.sourceBinding.update({
+        where: { id: binding.id },
+        data: { lastError: warning },
+      });
+    }
     return {
       createdCount: added,
       updatedCount: updated,
+      failedCount: failed || undefined,
       skippedCount,
       fetchedCount,
       pageCount,
@@ -486,7 +527,7 @@ export async function backfillBinding(
     const msg = e instanceof Error ? e.message : String(e);
     await prisma.sourceBinding.update({
       where: { id: binding.id },
-      data: { lastError: msg.slice(0, 300) },
+      data: { lastError: truncate(msg, 300) },
     });
     return {
       ...ZERO_BACKFILL,
@@ -557,7 +598,7 @@ export async function syncPlaylistTagsForBinding(
     const msg = e instanceof Error ? e.message : String(e);
     await prisma.sourceBinding.update({
       where: { id: binding.id },
-      data: { lastError: msg.slice(0, 300) },
+      data: { lastError: truncate(msg, 300) },
     });
     return {
       taggedCount: 0,

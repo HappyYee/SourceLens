@@ -17,6 +17,7 @@ import {
 import { normalizeEntry, type NormalizedItem, type RawEntry } from "../normalize";
 import { proxyDispatcher, setupProxy } from "../proxy";
 import { isHttpProxyUrl } from "../proxy-url";
+import { truncate } from "../text.ts";
 import type { Dispatcher } from "undici";
 
 export interface BindingLike {
@@ -390,7 +391,7 @@ export async function backfillYouTubeChannel(opts: {
       const thumb = (th.maxres ?? th.standard ?? th.high ?? th.medium ?? th.default)?.url ?? null;
       const desc =
         typeof sn.description === "string"
-          ? sn.description.replace(/\s+/g, " ").trim().slice(0, 200)
+          ? truncate(sn.description.replace(/\s+/g, " ").trim(), 200)
           : "";
       const durationSec = parseISO8601Duration(v.contentDetails?.duration);
       videos.push({

@@ -1,6 +1,8 @@
 // 拟题。X 第一版用规则（不用模型）：去 URL / @回复 / RT 前缀 → 首句 → 截断；纯媒体/纯链接走兜底。
 // 可选 ANTHROPIC_API_KEY 时 generateTitle 才走模型；缺 key 一律规则降级。应用无 key 也完整可用。
 
+import { truncate } from "../text.ts";
+
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-3-5-haiku-latest";
 
 /** 清洗正文用于拟题：去转发前缀、开头 @回复、URL，折叠空白。纯函数。 */
@@ -23,7 +25,7 @@ export function ruleTitle(text: string, opts?: { hasMedia?: boolean }): string {
     return "发布了一条短更新";
   }
   const first = cleaned.split(/[。！？.!?\n]/)[0]?.trim() || cleaned;
-  return first.slice(0, 40);
+  return truncate(first, 40);
 }
 
 /** 兼容旧名：等价于规则拟题。 */
@@ -32,12 +34,12 @@ export function degradeTitle(text: string): string {
 }
 
 function cleanModelTitle(raw: string): string {
-  return raw
+  const cleaned = raw
     .trim()
     .replace(/^["「『（(]+/, "")
     .replace(/["」』）)]+$/, "")
-    .trim()
-    .slice(0, 24);
+    .trim();
+  return truncate(cleaned, 24);
 }
 
 async function viaAnthropic(text: string): Promise<string | null> {

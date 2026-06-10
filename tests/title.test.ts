@@ -30,6 +30,12 @@ test("degradeTitle: 取首句 / 截断 40", () => {
   assert.equal(degradeTitle(long).length, 40);
 });
 
+test("ruleTitle: 截断命中 emoji 代理对时仍保持 well-formed", () => {
+  const title = ruleTitle(`${"a".repeat(39)}😀tail`);
+  assert.equal(title.length <= 40, true);
+  assert.equal(title.isWellFormed(), true);
+});
+
 test("generateTitle: 空→null；无 key→规则降级", async () => {
   assert.equal(await generateTitle(""), null);
   assert.equal(await generateTitle(null), null);

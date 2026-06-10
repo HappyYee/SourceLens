@@ -238,3 +238,35 @@ test("mapTweet：excerpt 只剥离结尾裸 t.co，中段保留", () => {
   const middle = { ...trailing, id: "t2", text: "hello https://t.co/mid world https://t.co/end" };
   assert.equal(mapTweet(middle).excerpt, "hello https://t.co/mid world");
 });
+
+test("mapTweet：excerpt 截断不会切断 emoji 代理对", () => {
+  const rt: RawTweet = {
+    id: "emoji-excerpt",
+    text: `${"a".repeat(279)}😀tail`,
+    createdAt: "",
+    author: null,
+    screenName: "alice",
+    isReply: false,
+    isRepost: false,
+    isQuote: false,
+    isThread: false,
+    quoted: null,
+    media: [],
+    links: [],
+  };
+  const excerpt = mapTweet(rt).excerpt!;
+  assert.equal(excerpt.length <= 280, true);
+  assert.equal(excerpt.isWellFormed(), true);
+});
+
+test("mapTweet：quote 标题截断不会切断 emoji 代理对", () => {
+  const n = mapTweet(rawQuote({
+    text: `${"a".repeat(91)}😀tail`,
+    author: "Bob",
+    screen: "bob",
+    url: "https://x.com/bob/status/emoji",
+  }));
+  const title = ((n.linkCards as { title: string | null }[]) ?? [])[0]?.title ?? "";
+  assert.equal(title.length <= 100, true);
+  assert.equal(title.isWellFormed(), true);
+});

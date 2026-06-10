@@ -1,6 +1,7 @@
 // X (Twitter) 纯逻辑（无网络 / 无浏览器，可被 node --test 直跑）：
 // handle 解析、UserTweets GraphQL 响应解析、postKind 分类、tweet → NormalizedItem。
 import type { NormalizedItem } from "../normalize.ts";
+import { truncate } from "../text.ts";
 
 const EXCERPT_MAX = 280;
 
@@ -250,8 +251,8 @@ function stripTrailingTco(text: string): string {
 
 function quoteTitle(q: NonNullable<RawTweet["quoted"]>): string {
   const text = q.text.replace(/\s+/g, " ").trim();
-  if (q.screen) return `引用 @${q.screen}${text ? `：${text}` : ""}`.slice(0, 100);
-  if (q.author) return `引用 ${q.author}${text ? `：${text}` : ""}`.slice(0, 100);
+  if (q.screen) return truncate(`引用 @${q.screen}${text ? `：${text}` : ""}`, 100);
+  if (q.author) return truncate(`引用 ${q.author}${text ? `：${text}` : ""}`, 100);
   return "引用了一条推文";
 }
 
@@ -272,7 +273,7 @@ export function mapTweet(rt: RawTweet): NormalizedItem {
       title: quoteTitle(rt.quoted),
     });
   }
-  const excerpt = stripTrailingTco(rt.text.replace(/\s+/g, " ").trim()).slice(0, EXCERPT_MAX);
+  const excerpt = truncate(stripTrailingTco(rt.text.replace(/\s+/g, " ").trim()), EXCERPT_MAX);
   return {
     externalId: rt.id,
     title: null, // X 无标题，交给规则拟题
