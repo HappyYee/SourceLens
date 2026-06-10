@@ -98,14 +98,15 @@ Status: P0 can fetch real posts; login-state display and emoji-safe write path h
 
 ## 6. Current Next Task
 
-Recommended next task: wait for the Phase 1 migration prompt, then start `PlatformAdapter` with X first.
+Recommended next task: Phase 1 Task B, migrate Bilibili into the `PlatformAdapter` registry after the user provides the Task B prompt.
 
 Follow-up direction:
 
-- Move the current platform-specific connector contracts toward a shared `PlatformAdapter` boundary.
+- X now has the first `PlatformAdapter` implementation and registry entry.
+- Move Bilibili into the same adapter boundary without changing current fallback behavior.
 - Preserve the working Phase 0 behavior for YouTube, Bilibili, and X.
 - Carry `truncate()` or its successor into the future `NormalizedItem` validation boundary before DB writes.
-- Do not start schema migrations until the user provides the Phase 1 migration prompt.
+- Do not start schema migrations unless the user explicitly provides a migration prompt.
 - Consider an X Debug Panel later for deeper observability, but it is not required for this fix.
 
 ## 7. Role Split Between AIs
@@ -236,11 +237,11 @@ Web AI collaborators working read-only should not update this file unless the us
 ## 12. Last Updated
 
 - Updated by: Codex Local
-- Date: 2026-06-11 00:37:52 CST
-- Current status: Repository is on private GitHub `main`; Phase 0 data-integrity fix for emoji-safe truncation is implemented and locally verified. YouTube, Bilibili P0, and X P0 all passed regression refresh checks.
-- What changed: Added `truncate()` for UTF-16-safe persisted string truncation, routed DB-bound X/title/YouTube/error-message truncation through it, and made per-item upsert failures return `failedCount` plus a short server warning instead of being fully silent.
-- Tests run: `node --test --experimental-strip-types --experimental-sqlite tests/text.test.ts` passed; targeted X/title tests passed; `npm test` passed with 134/134 tests; `npm run build` passed.
-- Verification results: X latest refresh for `@elonmusk` returned `added=1`, `updated=39`, `failedCount=0`; X backfill returned `createdCount=53`, `updatedCount=47`, `failedCount=0`; server logs no longer showed `unexpected end of hex escape`; X item count rose from 46 to 100 with `totalExternalIds=100` and `distinctExternalIds=100`; a non-text-printing emoji excerpt check found a well-formed emoji excerpt with no replacement-character ending; YouTube refresh returned `failedCount=0`; Bilibili refresh returned `failedCount=0`.
+- Date: 2026-06-11 01:13:47 CST
+- Current status: Repository is on private GitHub `main`; Phase 1 Task A is implemented locally. X latest refresh and backfill now route through `PlatformAdapter` + registry while YouTube, Bilibili, feeds, schema, UI, and connector internals remain unchanged.
+- What changed: Added `src/lib/platform/types.ts`, `registry.ts`, and `x.ts`; registered only the X adapter; routed `fetcher.ts` X latest/backfill through the registry; changed X AuthProfile logged-in marking to use the adapter `browserProfile` auth requirement; added platform adapter tests.
+- Tests run: `node --test --experimental-strip-types --experimental-sqlite tests/platform.test.ts` passed; `npm test` passed with 139/139 tests; `npm run build` passed.
+- Verification results: X latest initially had one transient failed API result, then retry passed with `added=0`, `updated=40`, `failedCount=0`, `networkLabel=国外刷新`; X backfill passed with `createdCount=0`, `updatedCount=50`, `failedCount=0`, `fetchedCount=125`, `hasMore=true`; X stayed at `totalExternalIds=100` and `distinctExternalIds=100`; X AuthProfile remained `logged_in` with `lastResult=国外刷新 · 已登录`; YouTube refresh passed with `failedCount=0`; Bilibili refresh passed with `failedCount=0`. Adapter unit tests verify the two X input/auth error messages without mutating the real DB or browser profile.
 - Known failures: No active Phase 0 P0 blocker observed. Existing X Items outside the verified `@elonmusk` backfill window may still need a future refresh/backfill to receive newer quote-card normalization.
-- Next recommended task: Wait for the user's Phase 1 migration prompt, then begin `PlatformAdapter` work with X first.
-- Summary: Phase 0 X write path now stores emoji-containing posts without malformed UTF-16 truncation, surfaces per-item write failures, and has been verified against the real local X profile.
+- Next recommended task: Wait for the user's Phase 1 Task B prompt, then migrate Bilibili into the adapter registry.
+- Summary: Phase 1 adapter boundary has started with X as the pilot, preserving external behavior while moving platform-specific source resolution and browser-profile auth ownership out of the fetcher switch.

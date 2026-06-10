@@ -1,0 +1,38 @@
+import type { NormalizedItem } from "../normalize.ts";
+
+export type AuthRequirement = "none" | "apiKeyOptional" | "browserProfile";
+
+export interface SourceCapabilities {
+  latestRefresh: true;
+  backfill: boolean;
+  tagsSync: boolean;
+  authRequired: boolean;
+  authOptional: boolean;
+  mediaSupport: boolean;
+  debugSupport: boolean;
+  commentsSupported: false;
+  downloadsSupported: false;
+  writesSupported: false;
+}
+
+export interface ExecCtx {
+  profileDir?: string;
+  proxyUrl?: string;
+  useProxy: boolean;
+}
+
+export interface FetchOutput {
+  items: NormalizedItem[];
+  rawCount?: number;
+  pageCount?: number;
+  hasMore?: boolean;
+}
+
+export interface PlatformAdapter {
+  platform: string;
+  getCapabilities(): SourceCapabilities;
+  checkAuthRequirement(): AuthRequirement;
+  resolveSourceInput(raw: string): string | null;
+  refreshLatest(rawInput: string, ctx: ExecCtx): Promise<FetchOutput>;
+  backfill?(rawInput: string, limit: number, ctx: ExecCtx): Promise<FetchOutput>;
+}

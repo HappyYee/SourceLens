@@ -16,12 +16,11 @@ import {
 } from "./connectors/youtube";
 import { collectBilibiliArchives } from "./connectors/bilibili-net";
 import { parseBilibiliInput } from "./connectors/bilibili";
-import { scrapeXUser } from "./connectors/x-scrape";
-import { parseXInput } from "./connectors/xpost";
 import { ruleTitle } from "./ai/title";
 import { inWindow } from "./view";
 import { assertDataDir } from "./storage";
 import { truncate } from "./text.ts";
+import { getAdapter } from "./platform/registry.ts";
 import {
   formatOutcome,
   networkHint,
@@ -73,7 +72,11 @@ async function authCtxFor(platform: string): Promise<AuthCtx> {
   };
 }
 
-async function markAuthProfileLoggedIn(id: string | undefined, ctx: AuthCtx): Promise<void> {
+async function markAuthProfileLoggedIn(
+  platform: string,
+  id: string | undefined,
+  ctx: AuthCtx,
+): Promise<void> {
   if (!id) return;
   try {
     await prisma.authProfile.update({
@@ -84,7 +87,7 @@ async function markAuthProfileLoggedIn(id: string | undefined, ctx: AuthCtx): Pr
         lastResult: formatOutcome({
           ok: true,
           action: "check_auth",
-          platform: "x",
+          platform,
           refreshRegion: ctx.refreshRegion,
           networkLabel: ctx.net.humanLabel,
         }),
@@ -150,18 +153,14 @@ async function fetchForBinding(
     return videos;
   }
   if (binding.platform === "x") {
-    const handle = parseXInput(binding.feedUrl || "");
-    if (!handle) throw new Error("无法解析 X 用户名：请填 @handle 或 x.com/{handle} 链接");
-    if (!ctx.profileDir) {
-      throw new Error("需要 X 登录态：请先在设置页创建 x 登录态并登录后重试");
-    }
-    const { videos } = await scrapeXUser({
-      handle,
+    const adapter = getAdapter("x");
+    if (!adapter) throw new Error("X adapter 未注册");
+    const out = await adapter.refreshLatest(binding.feedUrl || "", {
       profileDir: ctx.profileDir,
       proxyUrl: ctx.proxyUrl,
-      targetCount: 40, // 刷新最新
+      useProxy: ctx.useProxy,
     });
-    return videos;
+    return out.items;
   }
   if (binding.platform === "arxiv" && binding.query && window?.deep) {
     return fetchArxivPaged(binding.query, window.since);
@@ -304,7 +303,9 @@ export async function refreshBinding(
         lastError: writeFailureWarning(failed),
       },
     });
-    if (binding.platform === "x") await markAuthProfileLoggedIn(ctx.authProfileId, ctx);
+    if (getAdapter(binding.platform)?.checkAuthRequirement() === "browserProfile") {
+      await markAuthProfileLoggedIn(binding.platform, ctx.authProfileId, ctx);
+    }
     return {
       bindingId,
       platform: binding.platform,
@@ -446,17 +447,15 @@ export async function backfillBinding(
     }
 
     if (platform === "x") {
-      const handle = parseXInput(sourceInput);
-      if (!handle) throw new Error("无法解析 X 用户名：请填 @handle 或 x.com/{handle} 链接");
-      if (!ctx.profileDir) throw new Error("需要 X 登录态：请先在设置页创建 x 登录态并登录后重试");
       const target = clampBackfillLimit(limit, 600);
-      const { videos, scannedCount } = await scrapeXUser({
-        handle,
+      const adapter = getAdapter("x");
+      if (!adapter?.backfill) throw new Error("X adapter 未注册");
+      const out = await adapter.backfill(sourceInput, target, {
         profileDir: ctx.profileDir,
         proxyUrl: ctx.proxyUrl,
-        targetCount: target,
+        useProxy: ctx.useProxy,
       });
-      const { added, updated, failed } = await upsertItems(binding, videos);
+      const { added, updated, failed } = await upsertItems(binding, out.items);
       await prisma.sourceBinding.update({
         where: { id: binding.id },
         data: {
@@ -464,15 +463,17 @@ export async function backfillBinding(
           lastError: writeFailureWarning(failed),
         },
       });
-      await markAuthProfileLoggedIn(ctx.authProfileId, ctx);
+      if (adapter.checkAuthRequirement() === "browserProfile") {
+        await markAuthProfileLoggedIn(platform, ctx.authProfileId, ctx);
+      }
       return {
         createdCount: added,
         updatedCount: updated,
         failedCount: failed || undefined,
         skippedCount: 0,
-        fetchedCount: scannedCount,
-        pageCount: 0,
-        hasMore: videos.length >= target,
+        fetchedCount: out.rawCount ?? 0,
+        pageCount: out.pageCount ?? 0,
+        hasMore: out.hasMore ?? false,
         shortsCount: 0,
         playlistTaggedCount: 0,
         networkLabel: net.humanLabel,
