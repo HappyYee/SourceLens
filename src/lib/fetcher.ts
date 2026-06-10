@@ -14,8 +14,6 @@ import {
   buildPlaylistTagAssignments,
   resolveBackfillLimit,
 } from "./connectors/youtube";
-import { collectBilibiliArchives } from "./connectors/bilibili-net";
-import { parseBilibiliInput } from "./connectors/bilibili";
 import { ruleTitle } from "./ai/title";
 import { inWindow } from "./view";
 import { assertDataDir } from "./storage";
@@ -136,31 +134,20 @@ async function fetchForBinding(
   window: RefreshWindow | undefined,
   ctx: AuthCtx,
 ): Promise<NormalizedItem[]> {
-  if (binding.platform === "youtube") {
-    if (!binding.feedUrl?.trim()) {
-      throw new Error("YouTube 绑定需要频道 ID（UC… 开头）或 feed URL");
-    }
-    return fetchYouTube(binding.feedUrl, process.env.YOUTUBE_API_KEY, ctx.proxyUrl);
-  }
-  if (binding.platform === "bilibili") {
-    const mid = parseBilibiliInput(binding.feedUrl || "");
-    if (!mid) throw new Error("无法解析 B 站 UP 主：请填 mid 或 space.bilibili.com/{mid} 链接");
-    const { videos } = await collectBilibiliArchives({
-      mid,
-      limit: 50, // 刷新最新：检查最近 50 条
-      channel: { useProxy: ctx.useProxy, proxyUrl: ctx.proxyUrl, profileDir: ctx.profileDir },
-    });
-    return videos;
-  }
-  if (binding.platform === "x") {
-    const adapter = getAdapter("x");
-    if (!adapter) throw new Error("X adapter 未注册");
+  const adapter = getAdapter(binding.platform);
+  if (adapter) {
     const out = await adapter.refreshLatest(binding.feedUrl || "", {
       profileDir: ctx.profileDir,
       proxyUrl: ctx.proxyUrl,
       useProxy: ctx.useProxy,
     });
     return out.items;
+  }
+  if (binding.platform === "youtube") {
+    if (!binding.feedUrl?.trim()) {
+      throw new Error("YouTube 绑定需要频道 ID（UC… 开头）或 feed URL");
+    }
+    return fetchYouTube(binding.feedUrl, process.env.YOUTUBE_API_KEY, ctx.proxyUrl);
   }
   if (binding.platform === "arxiv" && binding.query && window?.deep) {
     return fetchArxivPaged(binding.query, window.since);
@@ -416,15 +403,16 @@ export async function backfillBinding(
   const net = ctx.net;
   try {
     if (platform === "bilibili") {
-      const mid = parseBilibiliInput(sourceInput);
-      if (!mid) throw new Error("无法解析 B 站 UP 主：请填 mid 或 space.bilibili.com/{mid} 链接");
-      const { videos, fetchedCount, pageCount, hasMore } = await collectBilibiliArchives({
-        mid,
-        limit: clampBackfillLimit(limit, 2000),
-        channel: { useProxy: ctx.useProxy, proxyUrl: ctx.proxyUrl, profileDir: ctx.profileDir },
+      const target = clampBackfillLimit(limit, 2000);
+      const adapter = getAdapter("bilibili");
+      if (!adapter?.backfill) throw new Error("Bilibili adapter 未注册");
+      const out = await adapter.backfill(sourceInput, target, {
+        profileDir: ctx.profileDir,
+        proxyUrl: ctx.proxyUrl,
+        useProxy: ctx.useProxy,
       });
-      const { added, updated, failed } = await upsertItems(binding, videos);
-      const shortsCount = videos.filter((v) => v.videoKind === "short").length;
+      const { added, updated, failed } = await upsertItems(binding, out.items);
+      const shortsCount = out.items.filter((v) => v.videoKind === "short").length;
       await prisma.sourceBinding.update({
         where: { id: binding.id },
         data: {
@@ -437,9 +425,9 @@ export async function backfillBinding(
         updatedCount: updated,
         failedCount: failed || undefined,
         skippedCount: 0,
-        fetchedCount,
-        pageCount,
-        hasMore,
+        fetchedCount: out.rawCount ?? 0,
+        pageCount: out.pageCount ?? 0,
+        hasMore: out.hasMore ?? false,
         shortsCount,
         playlistTaggedCount: 0,
         networkLabel: net.humanLabel,
