@@ -87,6 +87,15 @@ Status: P0 can fetch real posts; login-state display and emoji-safe write path h
 - Local verification on 2026-06-11: Settings check shows logged in after refresh, profile-busy shows a friendly message when the X login window is open, and repeated refresh keeps X item `externalId` count equal to distinct count.
 - DB-bound truncation now uses `src/lib/text.ts` `truncate()` so emoji surrogate pairs are not split before Prisma/SQLite writes.
 
+### Feed-Style Sources
+
+Status: latest refresh is routed through thin platform adapters.
+
+- RSS, podcast, GitHub releases Atom, and arXiv latest refresh now have `PlatformAdapter` entries.
+- Feed adapters are latest-only; backfill remains unsupported with the existing user-facing message.
+- Fetchable platform membership is derived from the adapter registry instead of a separate fetcher list.
+- Local verification on 2026-06-11: a temporary RSS Room/binding refreshed successfully, feed backfill returned the expected unsupported error, full refresh included the RSS binding, and the temporary Room was deleted after validation.
+
 ## 5. Current Known Problems
 
 - Existing X Items already stored before the quote-card mapping fix are not rewritten automatically.
@@ -98,15 +107,16 @@ Status: P0 can fetch real posts; login-state display and emoji-safe write path h
 
 ## 6. Current Next Task
 
-Recommended next task: Phase 1 Task D, add thin feed adapters and finish the `fetchForBinding` platform switch cleanup after the user provides the Task D prompt.
+Recommended next task: Phase 1 Task E, unify fetch diagnostics into a structured FetchReport / error-code boundary after the user provides the Task E prompt.
 
 Follow-up direction:
 
-- X, Bilibili, and YouTube now have `PlatformAdapter` implementations and registry entries.
-- Move RSS/podcast/GitHub/arXiv feed-style sources into thin adapters.
-- Derive fetchability from the registry after feeds are migrated, then remove the remaining `fetchForBinding` if-chain.
+- X, Bilibili, YouTube, RSS, podcast, GitHub, and arXiv now have `PlatformAdapter` implementations and registry entries.
+- `fetchForBinding` now dispatches through the adapter registry for all fetchable platforms.
+- Fetchability is derived from the registry.
 - Preserve the working Phase 0 behavior for YouTube, Bilibili, and X.
 - Carry `truncate()` or its successor into the future `NormalizedItem` validation boundary before DB writes.
+- Task E should make transient platform failures more diagnosable with explicit stage/error codes.
 - Do not start schema migrations unless the user explicitly provides a migration prompt.
 - Consider an X Debug Panel later for deeper observability, but it is not required for this fix.
 
@@ -238,11 +248,11 @@ Web AI collaborators working read-only should not update this file unless the us
 ## 12. Last Updated
 
 - Updated by: Codex Local
-- Date: 2026-06-11 02:54:10 CST
-- Current status: Repository is on private GitHub `main`; Phase 1 Task C is implemented locally. X, Bilibili, and YouTube latest refresh now route through `PlatformAdapter` + registry; YouTube backfill and sync-tags also go through the YouTube adapter while feed-style sources, schema, UI, and connector internals remain unchanged.
-- What changed: Added `src/lib/platform/youtube.ts`; extended `PlatformAdapter` with optional `syncTags`; registered the YouTube adapter; removed the dedicated YouTube latest branch from `fetcher.ts`; routed YouTube backfill and playlist tag fetching through the adapter; kept tag assignment and `youtubePlaylistTags` persistence in `fetcher.ts`; expanded platform adapter tests. `connectors/index.ts` and `connectors/youtube.ts` were not modified.
-- Tests run: `node --test --experimental-strip-types --experimental-sqlite tests/platform.test.ts` passed; `npm test` passed with 145/145 tests; `npm run build` passed.
-- Verification results: YouTube latest passed with `added=0`, `updated=15`, `failedCount=0`, `networkLabel=国外刷新`; YouTube backfill passed with `createdCount=0`, `updatedCount=50`, `failedCount=0`, `skippedCount=0`, `fetchedCount=50`, `pageCount=1`, `hasMore=true`, `shortsCount=0`, `playlistTaggedCount=49`; YouTube sync-tags passed with `taggedCount=49`, `playlistCount=20`; Bilibili latest passed with `updated=50`, `failedCount=0`; X latest passed on first try with `added=1`, `updated=39`, `failedCount=0`, so no transient X `lastError` was recorded this round. Final counts: YouTube `totalExternalIds=50/distinct=50`, Bilibili `50/50`, X `101/101`.
+- Date: 2026-06-11 04:02:39 CST
+- Current status: Repository is on private GitHub `main`; Phase 1 Task D is implemented locally and awaiting user approval to push. X, Bilibili, YouTube, RSS, podcast, GitHub, and arXiv latest refresh now route through `PlatformAdapter` + registry. Feed-style adapters are latest-only; schema, UI, and connector internals remain unchanged.
+- What changed: Added `src/lib/platform/feeds.ts`; registered RSS, podcast, GitHub, and arXiv adapters; added `fetchablePlatforms()` derived from the adapter registry; collapsed `fetchForBinding` to registry dispatch; passed refresh window hints through `ExecCtx`; extended platform adapter tests for feed adapters and fetchable platform membership. No `src/lib/connectors/`, schema, or UI files were modified.
+- Tests run: `node --test --experimental-strip-types --experimental-sqlite tests/platform.test.ts` passed with 14/14 tests; `npm test` passed with 148/148 tests; `npm run build` passed.
+- Verification results: YouTube latest passed with `added=0`, `updated=15`, `failedCount=0`, `networkLabel=国外刷新`; Bilibili latest passed with `added=0`, `updated=50`, `failedCount=0`, `networkLabel=国内刷新`; X latest passed on first try with `added=2`, `updated=38`, `failedCount=0`, so no transient X `lastError` was recorded this round. A temporary RSS Room/binding refreshed successfully with `added=10`, `updated=0`, `failedCount=0`; feed backfill returned the expected error `回溯历史目前支持 YouTube / Bilibili / X source`; full refresh passed with `bindings=11`, `added=0`, `updated=221`, no per-binding errors, and result counts `youtube=4`, `bilibili=5`, `x=1`, `rss=1`. The temporary Room was deleted after validation.
 - Known failures: No active Phase 0 P0 blocker observed. Existing X Items outside the verified `@elonmusk` backfill window may still need a future refresh/backfill to receive newer quote-card normalization. X latest can still have occasional transient SPA/network failures that pass on retry; record `binding.lastError` in this file whenever it recurs before Task E lands.
-- Next recommended task: Wait for the user's Phase 1 Task D prompt, then migrate feed-style adapters and derive fetchability from the registry.
-- Summary: Phase 1 adapter boundary now covers X, Bilibili, and YouTube, including YouTube sync-tags, while preserving the YouTube proxy/API-key behavior and connector internals.
+- Next recommended task: Wait for the user's Phase 1 Task E prompt, then add structured fetch diagnostics / error-code reporting without changing platform behavior.
+- Summary: Phase 1 adapter boundary now covers all current fetchable platforms for latest refresh, while preserving platform behavior and keeping feed adapters thin.

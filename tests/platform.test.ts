@@ -3,16 +3,32 @@ import assert from "node:assert/strict";
 import { parseBilibiliInput } from "../src/lib/connectors/bilibili.ts";
 import { parseXInput } from "../src/lib/connectors/xpost.ts";
 import { bilibiliAdapter } from "../src/lib/platform/bilibili.ts";
-import { getAdapter } from "../src/lib/platform/registry.ts";
+import { arxivAdapter, githubAdapter, podcastAdapter, rssAdapter } from "../src/lib/platform/feeds.ts";
+import { fetchablePlatforms, getAdapter } from "../src/lib/platform/registry.ts";
 import { xAdapter } from "../src/lib/platform/x.ts";
 import { youtubeAdapter } from "../src/lib/platform/youtube.ts";
 
-test("registry：注册 x / bilibili / youtube adapter，rss/manual 仍无 adapter", () => {
+test("registry：注册所有可抓取 adapter，manual 仍无 adapter", () => {
+  assert.equal(getAdapter("arxiv"), arxivAdapter);
   assert.equal(getAdapter("x"), xAdapter);
   assert.equal(getAdapter("bilibili"), bilibiliAdapter);
+  assert.equal(getAdapter("github"), githubAdapter);
+  assert.equal(getAdapter("podcast"), podcastAdapter);
+  assert.equal(getAdapter("rss"), rssAdapter);
   assert.equal(getAdapter("youtube"), youtubeAdapter);
-  assert.equal(getAdapter("rss"), undefined);
   assert.equal(getAdapter("manual"), undefined);
+});
+
+test("registry：fetchablePlatforms 从 adapter registry 派生", () => {
+  assert.deepEqual([...fetchablePlatforms()].sort(), [
+    "arxiv",
+    "bilibili",
+    "github",
+    "podcast",
+    "rss",
+    "x",
+    "youtube",
+  ]);
 });
 
 test("x adapter：resolveSourceInput 与 parseXInput 等价", () => {
@@ -44,6 +60,31 @@ test("x adapter：输入错误文案保持不变", async () => {
     () => xAdapter.refreshLatest("", { useProxy: false }),
     /无法解析 X 用户名：请填 @handle 或 x\.com\/\{handle\} 链接/,
   );
+});
+
+test("feed adapters：latest only，无授权要求，红线能力关闭", () => {
+  for (const adapter of [rssAdapter, podcastAdapter, githubAdapter, arxivAdapter]) {
+    assert.equal(adapter.checkAuthRequirement(), "none");
+    assert.equal(adapter.backfill, undefined);
+    const cap = adapter.getCapabilities();
+    assert.equal(cap.latestRefresh, true);
+    assert.equal(cap.backfill, false);
+    assert.equal(cap.tagsSync, false);
+    assert.equal(cap.authRequired, false);
+    assert.equal(cap.authOptional, false);
+    assert.equal(cap.mediaSupport, false);
+    assert.equal(cap.debugSupport, false);
+    assert.equal(cap.commentsSupported, false);
+    assert.equal(cap.downloadsSupported, false);
+    assert.equal(cap.writesSupported, false);
+  }
+});
+
+test("feed adapters：输入解析只做轻量 trim / 空值拒绝", () => {
+  assert.equal(rssAdapter.resolveSourceInput(" https://example.com/feed.xml "), "https://example.com/feed.xml");
+  assert.equal(rssAdapter.resolveSourceInput("   "), null);
+  assert.equal(arxivAdapter.resolveSourceInput(" cat:cs.AI "), "cat:cs.AI");
+  assert.equal(arxivAdapter.resolveSourceInput(""), null);
 });
 
 test("x adapter：缺登录态错误文案保持不变且不触发浏览器导入", async () => {

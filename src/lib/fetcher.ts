@@ -2,12 +2,6 @@
 // 重要：按 (roomId, externalId) 去重；只新增/更新元数据，从不因源头删除而删本地条目，customTitle 永不覆盖。
 import { prisma } from "./db";
 import {
-  FETCHABLE,
-  fetchArxivPaged,
-  fetchFeed,
-  resolveFeedUrl,
-} from "./connectors";
-import {
   buildPlaylistTagAssignments,
   resolveBackfillLimit,
 } from "./connectors/youtube";
@@ -15,7 +9,7 @@ import { ruleTitle } from "./ai/title";
 import { inWindow } from "./view";
 import { assertDataDir } from "./storage";
 import { truncate } from "./text.ts";
-import { getAdapter } from "./platform/registry.ts";
+import { fetchablePlatforms, getAdapter } from "./platform/registry.ts";
 import {
   formatOutcome,
   networkHint,
@@ -132,20 +126,17 @@ async function fetchForBinding(
   ctx: AuthCtx,
 ): Promise<NormalizedItem[]> {
   const adapter = getAdapter(binding.platform);
-  if (adapter) {
-    const out = await adapter.refreshLatest(binding.feedUrl || "", {
-      profileDir: ctx.profileDir,
-      proxyUrl: ctx.proxyUrl,
-      useProxy: ctx.useProxy,
-    });
-    return out.items;
-  }
-  if (binding.platform === "arxiv" && binding.query && window?.deep) {
-    return fetchArxivPaged(binding.query, window.since);
-  }
-  const url = resolveFeedUrl(binding);
-  if (!url) throw new Error("无法解析 feed URL（检查 feedUrl / query）");
-  return fetchFeed(url, binding.platform === "podcast");
+  if (!adapter) throw new Error(`不支持的平台：${binding.platform}`);
+  // feedUrl 优先、query 兜底：feeds 存 feedUrl，arxiv 存 query，
+  // x/bilibili/youtube 存 feedUrl；与旧 resolveFeedUrl 取值等价。
+  const rawInput = binding.feedUrl?.trim() || binding.query?.trim() || "";
+  const out = await adapter.refreshLatest(rawInput, {
+    profileDir: ctx.profileDir,
+    proxyUrl: ctx.proxyUrl,
+    useProxy: ctx.useProxy,
+    window: { since: window?.since, deep: window?.deep },
+  });
+  return out.items;
 }
 
 /** 把数组/对象序列化为 JSON；空数组 / null 返回 null（避免清空既有值）。 */
@@ -262,7 +253,7 @@ export async function refreshBinding(
 ): Promise<RefreshResult> {
   const binding = await prisma.sourceBinding.findUnique({ where: { id: bindingId } });
   if (!binding) return { bindingId, platform: "?", added: 0, updated: 0, error: "binding 不存在" };
-  if (!binding.enabled || !FETCHABLE.has(binding.platform)) {
+  if (!binding.enabled || !fetchablePlatforms().has(binding.platform)) {
     return { bindingId, platform: binding.platform, added: 0, updated: 0 };
   }
 
@@ -333,7 +324,7 @@ export async function refreshDue(opts?: {
   let updated = 0;
 
   for (const b of bindings) {
-    if (!FETCHABLE.has(b.platform)) continue;
+    if (!fetchablePlatforms().has(b.platform)) continue;
     const due =
       opts?.force ||
       !b.lastFetchedAt ||
@@ -382,7 +373,8 @@ export async function backfillBinding(
   const binding = await prisma.sourceBinding.findUnique({ where: { id: bindingId } });
   if (!binding) return { ...ZERO_BACKFILL, error: "binding 不存在" };
   const platform = binding.platform;
-  if (platform !== "youtube" && platform !== "bilibili" && platform !== "x") {
+  const backfillAdapter = getAdapter(platform);
+  if (!backfillAdapter?.backfill) {
     return { ...ZERO_BACKFILL, error: "回溯历史目前支持 YouTube / Bilibili / X source" };
   }
   const sourceInput = binding.feedUrl?.trim() || "";

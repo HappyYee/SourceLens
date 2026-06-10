@@ -19,6 +19,8 @@ export interface ExecCtx {
   profileDir?: string;
   proxyUrl?: string;
   useProxy: boolean;
+  /** Fetch-efficiency hints only; final time-window filtering stays in the orchestrator. */
+  window?: { since?: Date; deep?: boolean };
 }
 
 export interface FetchOutput {
