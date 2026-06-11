@@ -1,19 +1,7 @@
 import { buildArxivUrl } from "../connectors/arxiv.ts";
 import { buildGithubUrl } from "../connectors/github.ts";
-import type { ExecCtx, PlatformAdapter, SourceCapabilities } from "./types.ts";
-
-const FEED_CAPABILITIES: SourceCapabilities = {
-  latestRefresh: true,
-  backfill: false,
-  tagsSync: false,
-  authRequired: false,
-  authOptional: false,
-  mediaSupport: false,
-  debugSupport: false,
-  commentsSupported: false,
-  downloadsSupported: false,
-  writesSupported: false,
-};
+import { PLATFORM_AUTH, PLATFORM_CAPABILITIES } from "./capabilities.ts";
+import type { ExecCtx, PlatformAdapter } from "./types.ts";
 
 function feedInputError(): Error {
   return new Error("无法解析 feed URL（检查 feedUrl / query）");
@@ -27,11 +15,11 @@ function makeFeedAdapter(
     platform,
 
     getCapabilities() {
-      return FEED_CAPABILITIES;
+      return PLATFORM_CAPABILITIES[platform];
     },
 
     checkAuthRequirement() {
-      return "none";
+      return PLATFORM_AUTH[platform];
     },
 
     resolveSourceInput(raw: string) {

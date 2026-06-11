@@ -1,18 +1,6 @@
 import { parseXInput } from "../connectors/xpost.ts";
-import type { PlatformAdapter, SourceCapabilities } from "./types.ts";
-
-const CAPABILITIES: SourceCapabilities = {
-  latestRefresh: true,
-  backfill: true,
-  tagsSync: false,
-  authRequired: true,
-  authOptional: false,
-  mediaSupport: true,
-  debugSupport: false,
-  commentsSupported: false,
-  downloadsSupported: false,
-  writesSupported: false,
-};
+import { PLATFORM_AUTH, PLATFORM_CAPABILITIES } from "./capabilities.ts";
+import type { PlatformAdapter } from "./types.ts";
 
 function resolveHandle(rawInput: string): string {
   const handle = parseXInput(rawInput);
@@ -31,11 +19,11 @@ export const xAdapter: PlatformAdapter = {
   platform: "x",
 
   getCapabilities() {
-    return CAPABILITIES;
+    return PLATFORM_CAPABILITIES.x;
   },
 
   checkAuthRequirement() {
-    return "browserProfile";
+    return PLATFORM_AUTH.x;
   },
 
   resolveSourceInput(raw: string) {

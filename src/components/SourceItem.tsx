@@ -1,6 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import {
+  formatBackfillResult,
+  formatRefreshLatestResult,
+  formatSyncTagsResult,
+} from "@/lib/format-result";
+import { sourceActionFlags } from "@/lib/source-actions";
 import type { Platform } from "@/lib/types";
 import { PlatformIcon, platformLabel } from "./icons";
 import type { SourceRow } from "./RoomSources";
@@ -18,11 +24,8 @@ export default function SourceItem({
   const [msg, setMsg] = useState<string | null>(null);
   const [showLimits, setShowLimits] = useState(false);
 
-  const isYouTube = source.platform === "youtube";
   const isManual = source.platform === "manual";
-  const canBackfill =
-    source.platform === "youtube" || source.platform === "bilibili" || source.platform === "x";
-  const allowAll = source.platform === "youtube" || source.platform === "bilibili";
+  const flags = sourceActionFlags(source.platform);
 
   async function refreshLatest() {
     setBusy(true);
@@ -30,12 +33,7 @@ export default function SourceItem({
     try {
       const res = await fetch(`/api/bindings/${source.id}/refresh`, { method: "POST" });
       const j = await res.json().catch(() => ({}));
-      const tag = j.networkLabel ? `${j.networkLabel} · ` : "";
-      setMsg(
-        res.ok && !j.error
-          ? `${tag}最新：+${j.added ?? 0} 新 · ${j.updated ?? 0} 更`
-          : `${tag}${j.error || "刷新失败"}${j.hint ? "。" + j.hint : ""}`,
-      );
+      setMsg(formatRefreshLatestResult(res.ok && !j.error, j));
       onChanged();
     } catch {
       setMsg("网络错误");
@@ -55,18 +53,7 @@ export default function SourceItem({
         body: JSON.stringify({ limit }),
       });
       const j = await res.json().catch(() => ({}));
-      const tag = j.networkLabel ? `${j.networkLabel} · ` : "";
-      if (res.ok && !j.error) {
-        setMsg(
-          `${tag}回溯：+${j.createdCount} 新 · ${j.updatedCount} 更 · 已扫描 ${j.fetchedCount}` +
-            (j.shortsCount ? ` · Shorts ${j.shortsCount}` : "") +
-            (j.skippedCount ? ` · 跳过 ${j.skippedCount}` : "") +
-            (j.playlistTaggedCount ? ` · 打标 ${j.playlistTaggedCount}` : "") +
-            (j.hasMore ? " · 还有更多" : ""),
-        );
-      } else {
-        setMsg(`${tag}${j.error || "回溯失败"}${j.hint ? "。" + j.hint : ""}`);
-      }
+      setMsg(formatBackfillResult(res.ok && !j.error, j));
       onChanged();
     } catch {
       setMsg("网络错误");
@@ -83,12 +70,7 @@ export default function SourceItem({
         method: "POST",
       });
       const j = await res.json().catch(() => ({}));
-      const tag = j.networkLabel ? `${j.networkLabel} · ` : "";
-      setMsg(
-        res.ok && !j.error
-          ? `${tag}播放列表：${j.playlistCount} 个 · 打标 ${j.taggedCount} 条`
-          : `${tag}${j.error || "同步失败"}${j.hint ? "。" + j.hint : ""}`,
-      );
+      setMsg(formatSyncTagsResult(res.ok && !j.error, j));
       onChanged();
     } catch {
       setMsg("网络错误");
@@ -134,12 +116,12 @@ export default function SourceItem({
       ) : null}
 
       <span className="src-actions">
-        {!isManual ? (
+        {flags.canRefreshLatest ? (
           <button type="button" className="src-btn" disabled={busy} onClick={refreshLatest}>
             刷新最新
           </button>
         ) : null}
-        {canBackfill ? (
+        {flags.canBackfill ? (
           <span className="src-bf">
             <button
               type="button"
@@ -156,7 +138,7 @@ export default function SourceItem({
                     {n}
                   </button>
                 ))}
-                {allowAll ? (
+                {flags.allowBackfillAll ? (
                   <button
                     type="button"
                     onClick={() => {
@@ -170,7 +152,7 @@ export default function SourceItem({
             ) : null}
           </span>
         ) : null}
-        {isYouTube ? (
+        {flags.canSyncTags ? (
           <button type="button" className="src-btn" disabled={busy} onClick={syncTags}>
             同步播放列表标签
           </button>

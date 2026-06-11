@@ -1,18 +1,6 @@
 import { parseBilibiliInput } from "../connectors/bilibili.ts";
-import type { PlatformAdapter, SourceCapabilities } from "./types.ts";
-
-const CAPABILITIES: SourceCapabilities = {
-  latestRefresh: true,
-  backfill: true,
-  tagsSync: false,
-  authRequired: false,
-  authOptional: true,
-  mediaSupport: false,
-  debugSupport: false,
-  commentsSupported: false,
-  downloadsSupported: false,
-  writesSupported: false,
-};
+import { PLATFORM_AUTH, PLATFORM_CAPABILITIES } from "./capabilities.ts";
+import type { PlatformAdapter } from "./types.ts";
 
 function resolveMid(rawInput: string): string {
   const mid = parseBilibiliInput(rawInput);
@@ -24,13 +12,11 @@ export const bilibiliAdapter: PlatformAdapter = {
   platform: "bilibili",
 
   getCapabilities() {
-    return CAPABILITIES;
+    return PLATFORM_CAPABILITIES.bilibili;
   },
 
   checkAuthRequirement() {
-    // Bilibili profile is an optional fallback, not required auth. Keeping this as
-    // "none" prevents public fetch success from marking a Bilibili profile logged in.
-    return "none";
+    return PLATFORM_AUTH.bilibili;
   },
 
   resolveSourceInput(raw: string) {

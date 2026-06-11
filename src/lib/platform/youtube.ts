@@ -1,28 +1,16 @@
 import { extractChannelId, extractHandle } from "../connectors/youtube.ts";
-import type { PlatformAdapter, SourceCapabilities } from "./types.ts";
-
-const CAPABILITIES: SourceCapabilities = {
-  latestRefresh: true,
-  backfill: true,
-  tagsSync: true,
-  authRequired: false,
-  authOptional: false,
-  mediaSupport: false,
-  debugSupport: false,
-  commentsSupported: false,
-  downloadsSupported: false,
-  writesSupported: false,
-};
+import { PLATFORM_AUTH, PLATFORM_CAPABILITIES } from "./capabilities.ts";
+import type { PlatformAdapter } from "./types.ts";
 
 export const youtubeAdapter: PlatformAdapter = {
   platform: "youtube",
 
   getCapabilities() {
-    return CAPABILITIES;
+    return PLATFORM_CAPABILITIES.youtube;
   },
 
   checkAuthRequirement() {
-    return "apiKeyOptional";
+    return PLATFORM_AUTH.youtube;
   },
 
   resolveSourceInput(raw: string) {

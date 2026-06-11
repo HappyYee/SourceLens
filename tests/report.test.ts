@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { classifyError } from "../src/lib/report.ts";
 import { networkHint } from "../src/lib/network.ts";
+import { isProfileBusyError } from "../src/lib/browser.ts";
 
 test("classifyError：profile_busy 识别 browserCode 与 SingletonLock", () => {
   assert.equal(classifyError("anything", "profile_busy"), "profile_busy");
@@ -75,5 +76,17 @@ test("networkHint：搬家后网络错误提示行为保持等价", () => {
     "缺少 YOUTUBE_API_KEY（在 .env 配置后重启 dev）",
   ]) {
     assert.equal(networkHint("foreign", msg), undefined);
+  }
+});
+
+test("profile busy：browser.ts 与 report.ts 对文案兜底保持一致", () => {
+  for (const msg of [
+    "browserType.launchPersistentContext: Failed to create a ProcessSingleton for your profile directory.",
+    "Failed to create data/browser-profiles/x-main/SingletonLock: File exists",
+    "The profile appears to be already running or in use",
+    "普通网络错误 fetch failed",
+    "找不到本机 Chrome（channel=chrome）。请安装 Google Chrome 后重试",
+  ]) {
+    assert.equal(isProfileBusyError(msg), classifyError(msg) === "profile_busy");
   }
 });

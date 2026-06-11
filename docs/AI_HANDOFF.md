@@ -42,6 +42,7 @@ SourceLens is designed around user-controlled sources, not platform ranking. Cap
 - AuthProfile: a local browser login profile for platforms that need user-owned login state.
 - `data/db`: local SQLite storage. It is private local data and must not be uploaded.
 - `data/browser-profiles`: local Playwright/Chromium login state. It is private local auth state and must not be uploaded.
+- Platform runtime adapters live behind the server-side registry. UI-facing platform knowledge must come only from the client-safe static capability table in `src/lib/platform/capabilities.ts`; do not import the registry or adapters from client components or client-safe helpers. Dynamic imports are still statically analyzed by webpack and can leak server-only dependencies such as Playwright into the client bundle. Consistency between the static table and runtime adapters is pinned by `tests/platform.test.ts`.
 
 ## 4. Platform Status
 
@@ -108,18 +109,19 @@ Status: latest refresh is routed through thin platform adapters.
 
 ## 6. Current Next Task
 
-Recommended next task: Phase 2 F4, ResultLine + capabilities-to-UI and legacy result type consolidation. Include the pending profile-busy regex cross-check test when touching shared reporting/error classification.
+Recommended next task: Phase 2 F4b, legacy result type consolidation / `FetchReport` unification. F4a has already connected Source action UI to the client-safe capability table and extracted result formatters.
 
 Follow-up direction:
 
 - X, Bilibili, YouTube, RSS, podcast, GitHub, and arXiv now have `PlatformAdapter` implementations and registry entries.
 - `fetchForBinding` now dispatches through the adapter registry for all fetchable platforms.
 - Fetchability is derived from the registry.
-- `src/lib/report.ts` now provides shared error-code classification and a future `FetchReport` envelope; legacy result types remain in place until the Phase 2 UI ResultLine window.
+- `src/lib/report.ts` now provides shared error-code classification and a future `FetchReport` envelope; legacy result types remain in place until Phase 2 F4b.
 - Phase 2 F1 extracted shared card atoms (`CardMedia`, `MediaGrid`, `LinkPreview`, `TagList`) and pure helpers without changing card rendering conditions.
 - Phase 2 F2 moved X content blocks (`MediaGrid`, `LinkPreview`, quote fallback) into `XPostCard`; `ItemCard` now mounts the X content area as a single branch.
 - Phase 2 F3 moved remaining platform card knowledge into `src/components/cards/registry.tsx` plus pure label helpers. `ItemCard` is now a shell with no platform string literals; rendering class structure was curl-diff checked against the pre-F3 page.
 - Phase 2 G1 fixed X quote URL/card extraction in the pure parser after confirming real GraphQL structure: `screen_name` / `name` are under `user_results.result.core`, `legacy.quoted_status_permalink.{url,expanded,display}` exists, and the sampled `quoted_status_result.result` was a direct Tweet object rather than a `TweetWithVisibilityResults` wrapper.
+- Phase 2 F4a moved Source action visibility to capabilities and result message formatting to pure helpers. The client-safe capability table is the UI source of truth; the server adapter registry remains the runtime source of truth, with tests enforcing that they stay equal.
 - Preserve the working Phase 0 behavior for YouTube, Bilibili, and X.
 - Carry `truncate()` or its successor into the future `NormalizedItem` validation boundary before DB writes.
 - Do not start schema migrations unless the user explicitly provides a migration prompt.
@@ -253,12 +255,12 @@ Web AI collaborators working read-only should not update this file unless the us
 ## 12. Last Updated
 
 - Updated by: Codex Local
-- Date: 2026-06-11 16:36:33 CST
-- Current status: Repository is on private GitHub `main`; Phase 2 Task G1 is implemented locally and awaiting user approval to push. F3 commit `c06fad1` was pushed. X quote extraction now works against the current GraphQL payload shape; `@elonmusk` local X item count is `264`, with `externalId` distinct count also `264`.
-- What changed: In `src/lib/connectors/xpost.ts`, `authorFrom` now falls back from legacy user fields to `user_results.result.core.{name,screen_name}`; quote URL construction now prefers `legacy.quoted_status_permalink.expanded`; `normalizeXStatusUrl()` canonicalizes `twitter.com` and `x.com` status URLs to `https://x.com/...`; quote link-card dedupe compares normalized URLs. Tests cover new-core payloads, old legacy payloads, permalink URL normalization, and twitter/x dedupe.
-- Step 0 diagnostic: A temporary script sampled the first real `UserTweets` payload and was deleted before staging. It confirmed `$.tweet.core.user_results.result.core.name`, `$.tweet.core.user_results.result.core.screen_name`, `$.tweet.legacy.quoted_status_permalink.{url,expanded,display}`, and `$.quotedTweet.core.user_results.result.core.{name,screen_name}`. The sampled `quoted_status_result.result` was a direct Tweet object, not wrapped in `TweetWithVisibilityResults`.
-- Tests run: `node --test --experimental-strip-types --experimental-sqlite tests/xpost.test.ts` passed with 19/19 tests; `npm test` passed with 164/164 tests; `npm run build` passed.
-- Verification results: X latest returned `added=0 updated=0`, first X backfill returned `created=5 updated=3 fetched=21`, second X backfill returned `created=155 updated=109 fetched=671`. Final quote stats for the real `@elonmusk` Room: `quoteItems=214`, `quotedNull=2`, `quotedUrlNull=0`, `quotedUrlNormal=212`, `linkCardCount=213`, `linkCardDomains={x.com:212,grok.com:1}`. Browser check on the X Room showed `items=17`, `xQuoteMetas=13`, `quoteFallback=0`, `linkCards=14`, `cardDomains={x.com:14}`, `brokenImages=0`, no console errors/warnings. Bilibili latest regression check passed with `added=0 updated=50`.
-- Known failures: No active YouTube regression remains after the G1 retry; the earlier `HTTP 404` / `HTTP 500` latest-refresh failures were transient and all three retried successfully with `updated=15`. X latest can still have occasional transient SPA/network failures that pass on retry; record `binding.lastError` and `errorCode` in this file whenever it recurs.
-- Next recommended task: Phase 2 F4, ResultLine + capabilities-to-UI and legacy result type consolidation.
-- Summary: Phase 2 G1 resolves the structural X quote-card failure; old quote cards were repaired by real backfill without schema migration.
+- Date: 2026-06-11 18:42:41 CST
+- Current status: Repository is on private GitHub `main`; G1 commit `8f22608` has been pushed. Phase 2 F4a is implemented locally and awaiting user approval to push. Source action buttons are now driven by client-safe capabilities, and result messages are formatted by pure helpers.
+- What changed: Added `src/lib/platform/capabilities.ts` as the client-safe static capability/auth table, added `src/lib/source-actions.ts` for UI action flags, added `src/lib/format-result.ts` for refresh/backfill/tag-sync message formatting, wired `SourceItem` to those helpers, added `backfillAll` to `SourceCapabilities`, updated adapters to read from the shared capability/auth tables, and added consistency tests that compare runtime adapters with the client-safe tables.
+- Architecture note: F4a initially confirmed a bundling hazard: importing the platform registry from UI-facing code can pull adapter dynamic imports into the client bundle, including server-only dependencies like Playwright. The rule going forward is: UI-side platform knowledge comes only from `src/lib/platform/capabilities.ts`; registry/adapter imports stay server-side unless proven otherwise.
+- Tests run: `node --test --experimental-strip-types --experimental-sqlite tests/format-result.test.ts` passed with 3/3 tests; `node --test --experimental-strip-types --experimental-sqlite tests/source-actions.test.ts` passed with 1/1 tests; `node --test --experimental-strip-types --experimental-sqlite tests/report.test.ts` passed with 9/9 tests; `npm test` passed with 170/170 tests; `npm run build` passed.
+- Verification results: Button matrix was checked in a temporary Room and matched the expected pre-F4a behavior: YouTube shows refresh/backfill/all/tag-sync; Bilibili shows refresh/backfill/all; X shows refresh/backfill without all; RSS/podcast/GitHub/arXiv show refresh only; manual shows delete only and still displays `手动粘贴`. The temporary Room was deleted after validation. Real result-message checks passed: X latest returned `国外刷新 · 最新：+0 新 · 0 更`; Bilibili latest returned `国内刷新 · 最新：+0 新 · 50 更`; YouTube latest returned `国外刷新 · 最新：+0 新 · 15 更`; YouTube backfill 50 returned `国外刷新 · 回溯：+0 新 · 50 更 · 已扫描 50 · Shorts 46 · 打标 50 · 还有更多`; YouTube playlist sync returned `国外刷新 · 播放列表：21 个 · 打标 50 条`.
+- Known failures: No active F4a failure remains. A browser-side Statsig timeout from the Codex browser client and a stale Next warning from an accidentally visited 404 page were observed during local UI checks; SourceLens action behavior and messages were correct. X latest and YouTube latest can still have occasional transient SPA/network failures that pass on retry; record `binding.lastError` and `errorCode` in this file whenever they recur.
+- Next recommended task: Phase 2 F4b, legacy result type consolidation / `FetchReport` unification.
+- Summary: Phase 2 F4a removes SourceItem's action-visibility platform switch while keeping all user-visible buttons and result strings unchanged. The UI now depends on a client-safe capability table, with server registry consistency pinned by tests.

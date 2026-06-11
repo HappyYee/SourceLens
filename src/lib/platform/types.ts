@@ -5,6 +5,8 @@ export type AuthRequirement = "none" | "apiKeyOptional" | "browserProfile";
 export interface SourceCapabilities {
   latestRefresh: true;
   backfill: boolean;
+  /** Whether the UI may offer an "all history" backfill option. */
+  backfillAll: boolean;
   tagsSync: boolean;
   authRequired: boolean;
   authOptional: boolean;

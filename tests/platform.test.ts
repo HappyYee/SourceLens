@@ -2,6 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { parseBilibiliInput } from "../src/lib/connectors/bilibili.ts";
 import { parseXInput } from "../src/lib/connectors/xpost.ts";
+import {
+  capabilitiesFor,
+  PLATFORM_AUTH,
+  PLATFORM_CAPABILITIES,
+} from "../src/lib/platform/capabilities.ts";
 import { bilibiliAdapter } from "../src/lib/platform/bilibili.ts";
 import { arxivAdapter, githubAdapter, podcastAdapter, rssAdapter } from "../src/lib/platform/feeds.ts";
 import { fetchablePlatforms, getAdapter } from "../src/lib/platform/registry.ts";
@@ -31,6 +36,20 @@ test("registry：fetchablePlatforms 从 adapter registry 派生", () => {
   ]);
 });
 
+test("capabilities：client-safe 能力表与 server adapter registry 保持一致", () => {
+  const capabilityKeys = Object.keys(PLATFORM_CAPABILITIES).sort();
+  const authKeys = Object.keys(PLATFORM_AUTH).sort();
+  const fetchableKeys = [...fetchablePlatforms()].sort();
+  assert.deepEqual(capabilityKeys, fetchableKeys);
+  assert.deepEqual(authKeys, capabilityKeys);
+  for (const platform of fetchableKeys) {
+    const adapter = getAdapter(platform);
+    assert.ok(adapter);
+    assert.deepEqual(adapter.getCapabilities(), capabilitiesFor(platform));
+    assert.equal(adapter.checkAuthRequirement(), PLATFORM_AUTH[platform]);
+  }
+});
+
 test("x adapter：resolveSourceInput 与 parseXInput 等价", () => {
   assert.equal(xAdapter.resolveSourceInput("@elonmusk"), parseXInput("@elonmusk"));
   assert.equal(
@@ -45,6 +64,7 @@ test("x adapter：auth requirement 与 capabilities", () => {
   const cap = xAdapter.getCapabilities();
   assert.equal(cap.latestRefresh, true);
   assert.equal(cap.backfill, true);
+  assert.equal(cap.backfillAll, false);
   assert.equal(cap.tagsSync, false);
   assert.equal(cap.authRequired, true);
   assert.equal(cap.authOptional, false);
@@ -69,6 +89,7 @@ test("feed adapters：latest only，无授权要求，红线能力关闭", () =>
     const cap = adapter.getCapabilities();
     assert.equal(cap.latestRefresh, true);
     assert.equal(cap.backfill, false);
+    assert.equal(cap.backfillAll, false);
     assert.equal(cap.tagsSync, false);
     assert.equal(cap.authRequired, false);
     assert.equal(cap.authOptional, false);
@@ -108,6 +129,7 @@ test("bilibili adapter：auth optional，红线能力关闭", () => {
   const cap = bilibiliAdapter.getCapabilities();
   assert.equal(cap.latestRefresh, true);
   assert.equal(cap.backfill, true);
+  assert.equal(cap.backfillAll, true);
   assert.equal(cap.tagsSync, false);
   assert.equal(cap.authRequired, false);
   assert.equal(cap.authOptional, true);
@@ -138,6 +160,7 @@ test("youtube adapter：apiKey optional，支持 tagsSync，红线能力关闭",
   const cap = youtubeAdapter.getCapabilities();
   assert.equal(cap.latestRefresh, true);
   assert.equal(cap.backfill, true);
+  assert.equal(cap.backfillAll, true);
   assert.equal(cap.tagsSync, true);
   assert.equal(cap.authRequired, false);
   assert.equal(cap.authOptional, false);
