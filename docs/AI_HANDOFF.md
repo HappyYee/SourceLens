@@ -211,6 +211,8 @@ npm test
 npm run build
 ```
 
+When switching to a branch with Prisma schema changes, run `npx prisma generate` before `npm run build`; generating the client updates local types only and does not touch the database.
+
 Data scripts:
 
 ```bash
@@ -255,10 +257,12 @@ Web AI collaborators working read-only should not update this file unless the us
 ## 12. Last Updated
 
 - Updated by: Claude 20x Web Architect + Codex Local verifier
-- Date: 2026-06-11 22:03:53 CST
-- Current status: Phase 2 F4b is locally verified and fast-forward merged into `main`; awaiting user confirmation before pushing `main`. From this task onward, Claude writes the majority of code in its cloud sandbox and Codex acts as the local verifier/merger.
-- What changed: All three fetcher entry points now return the unified `FetchReport` envelope (`refreshBinding` returns `FetchReport & { bindingId }` as `BindingFetchReport`). Legacy types `RefreshResult` / `BackfillCounts` / `PlaylistSyncResult` / `RefreshOutcome` are deleted. `formatOutcome` consumes `FetchReport` (`errorMessage` / `rawCount`); `format-result.ts` formatter inputs renamed accordingly with output strings byte-identical; `SourceItem` ok-checks read `errorMessage`; `AuthProfileManager` and the auth check route use `FetchReport`; backfill / sync-playlist-tags routes derive HTTP status from `res.ok`. `/api/refresh` aggregate keys (`bindings`/`added`/`updated`) are unchanged for `RefreshButton`. `FetchReport` gained `refreshRegion` / `shortsCount` / `taggedCount` / `playlistCount` (platform display counts; revisit during Phase 3 field consolidation).
-- Tests run: Claude sandbox `npm test` passed 170/170 and `npm run build` passed; Codex local verification passed `npm test` 170/170, `npm run build`, real UI latest/backfill/sync/refresh-all result strings, X check-auth including profile-busy and post-refresh `lastResult=国外刷新 · 已登录`, invalid-input JSON `errorMessage + errorCode=input` with unchanged UI text, and `npm run fetch` on default port 3000.
-- Known failures: none in sandbox. Transient X/YouTube SPA/network failures may still occur on real refresh; record `binding.lastError` + `errorCode` here when they recur.
-- Next recommended task: push verified `main` after user confirmation, then close Phase 2. After that: Claude drafts the Phase 3 schema-migration review document (ItemStatus + `binding.authProfileId` + `youtubeKind`→`videoKind`) for user approval before any code.
-- Summary: Phase 2 F4b — single result envelope across fetcher, routes, and UI with zero user-visible text changes.
+- Date: 2026-06-11 23:29 CST
+- Current status: Phase 3a (first archive-schema migration) has been applied to the real local DB and merged into local `main`; awaiting user confirmation before pushing `main`.
+- What changed: Migration `phase3a_item_status_auth_profile_video_kind` adds nullable-only columns — Item: `availability`/`metadataStatus`/`lastSeenAt`/`lastCheckedAt`/`missingSince`; SourceBinding: `authProfileId` (loose reference, no FK by design); AuthProfile: `isDefault` — plus an in-migration backfill `UPDATE Item SET videoKind=youtubeKind WHERE platform='youtube' AND youtubeKind IS NOT NULL AND videoKind IS NULL`. Design deviation approved in review: `availability`/`isDefault` are nullable (NOT NULL DEFAULT would trigger Prisma SQLite table rebuild); readers use `?? "unknown"` / `?? false`. Code: new pure `src/lib/item-data.ts` (upsert data builders, write `lastSeenAt`, pin customTitle/playlist-tag ownership); `pickAuthProfile` in `authprofile.ts` (explicit → isDefault → createdAt asc); `authCtxFor(platform, explicitProfileId?)` consumes `binding.authProfileId` with fallback warn; YouTube connector dual-writes `videoKind`; reads go through `effectiveVideoKind` (videoKind ?? youtubeKind) in card registry and backfill shortsCount. Ownership rule recorded in schema comment: refresh writes only `lastSeenAt`; availability/metadataStatus/missingSince belong to the 3b metadata checker; "absent from a refresh window" is never unavailable evidence.
+- Sandbox rehearsal: migration SQL verified to be pure ADD COLUMN (an earlier candidate with NOT NULL DEFAULT was rejected at the review gate because Prisma generated table rebuilds); applied against a synthetic DB seeded with youtube/bilibili/x rows + customTitle sentinel — backfill exact, counts unchanged, integrity_check ok, snapshot-restore rollback rehearsed.
+- Tests run: Claude sandbox `npm test` 178/178 and `npm run build` passed. Codex local ran `npx prisma generate`, `npm run build`, backed up real DB to `data/db.backup-20260611-2329` with `PRAGMA integrity_check=ok`, inspected migration SQL (7 ADD COLUMN + 1 UPDATE), recorded pre/post counts (`Item=544`, `SourceBinding=10`, `AuthProfile=2` unchanged), applied `npx prisma migrate deploy`, regenerated Prisma Client, confirmed YouTube `videoKind` non-null count `169 >= 169`, and verified no local `customTitle` sentinel rows existed to compare.
+- Real refresh verification: X latest `+1 new / 39 updated / failedCount=0`, Bilibili latest `+0 / 50 / failedCount=0`, YouTube latest `+0 / 15 / failedCount=0`. `Item.lastSeenAt IS NOT NULL` increased from `0` to `105`. YouTube backfill view showed `YouTube · Shorts` labels, confirming `effectiveVideoKind` display path.
+- Known failures: none in local migration/verification. Transient X/YouTube SPA/network failures may still occur on real refresh; record `binding.lastError` + `errorCode` here when they recur.
+- Next recommended task: push verified `main` after user confirmation. After that: Phase 3b (metadata checker + availability writers + StatusBadge).
+- Summary: Phase 3a — additive-only archive schema migration applied to the real local DB, with lastSeenAt now recorded on refresh hits.

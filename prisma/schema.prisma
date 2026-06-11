@@ -47,6 +47,8 @@ model AuthProfile {
   proxyUrl      String?
   refreshRegion String    @default("auto") //     domestic | foreign | auto
   status        String    @default("unknown") //  unknown | logged_in | expired | needs_check
+  isDefault     Boolean? //                      平台默认登录态（每平台至多一个，代码层约束；
+  //                                              nullable=纯加列迁移，null 视为 false）
   lastResult    String? //                        最近一次检查的行内文案
   lastCheckedAt DateTime?
   createdAt     DateTime  @default(now())
@@ -64,6 +66,8 @@ model SourceBinding {
   label         String?
   enabled       Boolean   @default(true)
   intervalMin   Int       @default(60)
+  authProfileId String? //  显式指定登录态 AuthProfile.id；null=平台默认。
+  //                        松引用（不建 FK：SQLite 加 FK 列需重建表，首个档案迁移坚持纯加列）。
   lastFetchedAt DateTime?
   lastError     String?
   items         Item[]
@@ -98,6 +102,16 @@ model Item {
   platformTags String? //       JSON 数组：通用平台标签（B 站合集/分区/标签 等）
   media        String? //       JSON：媒体（图片/视频缩略图，不下载文件）
   linkCards    String? //       JSON：外链卡片（domain/标题/url）
+
+  // —— 信息档案状态（Phase 3）。写入所有权：lastSeenAt 由 refresh/backfill upsert 写；
+  //    availability/metadataStatus/lastCheckedAt/missingSince 仅 metadata checker（3b）可写，
+  //    刷新"未出现"永远不是 unavailable 证据（RSS 滑动窗口原则）。
+  availability   String? //                       available | unavailable | unknown（null=从未评估；
+  //                                              nullable=纯加列迁移，读取时 ?? "unknown"）
+  metadataStatus String? //                       fresh | stale | partial | unavailable（null=未评估）
+  lastSeenAt     DateTime? //                     最近一次出现在刷新结果中
+  lastCheckedAt  DateTime? //                     metadata check 显式检查时间
+  missingSince   DateTime? //                     首次"应出现而未出现"
 
   @@unique([roomId, externalId]) // 去重：同一 Room 内同一对象不重复（跨 Room 独立存在）
   @@index([roomId, publishedAt])

@@ -72,3 +72,25 @@ test(".gitignore 必须忽略 data/browser-profiles（不上传登录态）", ()
   const txt = readFileSync(p, "utf8");
   assert.match(txt, /browser-profiles/);
 });
+
+// —— Phase 3a：AuthProfile 选择 —— //
+import { pickAuthProfile } from "../src/lib/authprofile.ts";
+
+test("pickAuthProfile：显式指定命中优先", () => {
+  const a = { id: "a", isDefault: true, createdAt: new Date("2026-01-01") };
+  const b = { id: "b", isDefault: null, createdAt: new Date("2026-01-02") };
+  assert.equal(pickAuthProfile([a, b], "b"), b);
+});
+
+test("pickAuthProfile：显式指定未命中 → 回退默认链", () => {
+  const a = { id: "a", isDefault: null, createdAt: new Date("2026-01-01") };
+  const b = { id: "b", isDefault: true, createdAt: new Date("2026-01-02") };
+  assert.equal(pickAuthProfile([a, b], "ghost"), b); // isDefault 胜 createdAt
+});
+
+test("pickAuthProfile：无 isDefault 时按 createdAt asc（与旧行为一致）", () => {
+  const a = { id: "a", isDefault: null, createdAt: new Date("2026-01-02") };
+  const b = { id: "b", isDefault: null, createdAt: new Date("2026-01-01") };
+  assert.equal(pickAuthProfile([a, b]), b);
+  assert.equal(pickAuthProfile([], undefined), undefined);
+});

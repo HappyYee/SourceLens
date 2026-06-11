@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { ItemVM, Platform } from "@/lib/types";
+import { effectiveVideoKind } from "@/lib/view";
 import { IconMic, IconSpark, platformLabel } from "../icons";
 import { bilibiliSrcLabel, xSrcLabel, youtubeSrcLabel } from "./labels";
 import { IconTile, VideoThumb, XVideoThumb } from "./CardMedia";
@@ -21,7 +22,7 @@ const DEFAULT_RENDERER: CardRenderer = {
 
 const RENDERERS: Partial<Record<Platform, Partial<CardRenderer>>> = {
   youtube: {
-    srcLabel: (it) => youtubeSrcLabel(it.youtubeKind) ?? platformLabel("youtube"),
+    srcLabel: (it) => youtubeSrcLabel(effectiveVideoKind(it)) ?? platformLabel("youtube"),
     linkLabel: "在 YouTube 查看",
     media: (it, dur) => (
       <VideoThumb

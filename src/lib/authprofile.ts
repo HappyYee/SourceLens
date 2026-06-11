@@ -35,3 +35,16 @@ export function authProfileDir(platform: string, name: string): string {
 export function isSafeProfileDir(dir: string): boolean {
   return isWithin(join(getDataDir(), "browser-profiles"), dir);
 }
+
+/** AuthProfile 选择（Phase 3a）：显式指定 → isDefault → createdAt asc。纯函数。
+ *  显式 id 找不到时回退默认（调用方负责 warn）；空列表返回 undefined。 */
+export function pickAuthProfile<
+  T extends { id: string; isDefault?: boolean | null; createdAt: Date },
+>(profiles: T[], explicitId?: string | null): T | undefined {
+  if (explicitId) {
+    const hit = profiles.find((p) => p.id === explicitId);
+    if (hit) return hit;
+  }
+  const sorted = [...profiles].sort((a, b) => +a.createdAt - +b.createdAt);
+  return sorted.find((p) => p.isDefault === true) ?? sorted[0];
+}

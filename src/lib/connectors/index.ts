@@ -255,7 +255,10 @@ export async function fetchYouTube(
     }
   }
 
-  for (const r of rows) r.n.youtubeKind = youtubeKindFromDuration(r.n.durationSec);
+  for (const r of rows) {
+    r.n.youtubeKind = youtubeKindFromDuration(r.n.durationSec);
+    r.n.videoKind = r.n.youtubeKind; // Phase 3a 双写：videoKind 为主、youtubeKind 过渡保留
+  }
   return rows.map((r) => r.n);
 }
 
@@ -394,6 +397,7 @@ export async function backfillYouTubeChannel(opts: {
         publishedAt: sn.publishedAt ? new Date(sn.publishedAt) : new Date(),
         raw: JSON.stringify(v),
         youtubeKind: youtubeKindFromDuration(durationSec),
+        videoKind: youtubeKindFromDuration(durationSec), // Phase 3a 双写
       });
     }
   }

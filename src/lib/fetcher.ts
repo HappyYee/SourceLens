@@ -6,8 +6,10 @@ import {
   resolveBackfillLimit,
 } from "./connectors/youtube";
 import { ruleTitle } from "./ai/title";
+import { pickAuthProfile } from "./authprofile.ts";
 import { BrowserError } from "./browser.ts";
-import { inWindow } from "./view";
+import { buildItemCreateData, buildItemUpdateData } from "./item-data.ts";
+import { effectiveVideoKind, inWindow } from "./view";
 import { assertDataDir } from "./storage";
 import { truncate } from "./text.ts";
 import { fetchablePlatforms, getAdapter } from "./platform/registry.ts";
@@ -32,13 +34,20 @@ interface AuthCtx {
   useProxy: boolean;
 }
 
-/** 为某平台装配通道：bilibili/x 读其 AuthProfile（决定通道与代理、提供登录态目录）。 */
-async function authCtxFor(platform: string): Promise<AuthCtx> {
+/**
+ * 为某平台装配通道：bilibili/x 读其 AuthProfile（决定通道与代理、提供登录态目录）。
+ * Phase 3a：binding 可经 explicitProfileId 显式指定登录态；
+ * 选择顺序 = 显式指定 → isDefault → createdAt asc（无人设置时与旧行为一致）。
+ */
+async function authCtxFor(platform: string, explicitProfileId?: string | null): Promise<AuthCtx> {
   if (platform === "bilibili" || platform === "x") {
-    const ap = await prisma.authProfile.findFirst({
-      where: { platform },
-      orderBy: { createdAt: "asc" },
-    });
+    const profiles = await prisma.authProfile.findMany({ where: { platform } });
+    const ap = pickAuthProfile(profiles, explicitProfileId);
+    if (explicitProfileId && ap?.id !== explicitProfileId) {
+      console.warn(
+        `[auth] binding 指定的 AuthProfile 不存在（${explicitProfileId}），已回退平台默认`,
+      );
+    }
     const net = resolveRefreshNetwork({
       platform,
       refreshRegion: (ap?.refreshRegion as RefreshRegion) ?? "auto",
@@ -112,6 +121,7 @@ type BindingRow = {
   platform: string;
   feedUrl: string | null;
   query: string | null;
+  authProfileId: string | null;
 };
 
 async function fetchForBinding(
@@ -133,13 +143,6 @@ async function fetchForBinding(
   return out.items;
 }
 
-/** 把数组/对象序列化为 JSON；空数组 / null 返回 null（避免清空既有值）。 */
-function jsonOrNull(v: unknown): string | null {
-  if (v == null) return null;
-  if (Array.isArray(v)) return v.length ? JSON.stringify(v) : null;
-  return JSON.stringify(v);
-}
-
 function writeFailureWarning(failed: number): string | null {
   return failed > 0 ? `${failed} 条写入失败（详见服务端日志）` : null;
 }
@@ -159,6 +162,7 @@ async function upsertItems(
   let added = 0;
   let updated = 0;
   let failed = 0;
+  const seenAt = new Date(); // 本批次的 lastSeenAt：命中即"最近一次出现在刷新结果中"
   for (const it of items) {
     try {
       const aiTitle = !it.title && it.excerpt ? ruleTitle(it.excerpt) : null;
@@ -167,69 +171,14 @@ async function upsertItems(
         select: { id: true },
       });
       if (existing) {
-        const data: {
-          bindingId: string;
-          platform: string;
-          title?: string | null;
-          aiTitle?: string | null;
-          excerpt?: string | null;
-          thumbnailUrl?: string | null;
-          durationSec?: number | null;
-          author?: string | null;
-          raw?: string | null;
-          url?: string;
-          youtubeKind?: string | null;
-          videoKind?: string | null;
-          postKind?: string | null;
-          platformTags?: string | null;
-          media?: string | null;
-          linkCards?: string | null;
-        } = { bindingId: binding.id, platform: binding.platform };
-        if (it.title != null) data.title = it.title;
-        if (aiTitle != null) data.aiTitle = aiTitle;
-        if (it.excerpt != null) data.excerpt = it.excerpt;
-        if (it.thumbnailUrl != null) data.thumbnailUrl = it.thumbnailUrl;
-        if (it.durationSec != null) data.durationSec = it.durationSec;
-        if (it.author != null) data.author = it.author;
-        if (it.raw != null) data.raw = it.raw;
-        if (it.url) data.url = it.url;
-        if (it.youtubeKind != null) data.youtubeKind = it.youtubeKind;
-        if (it.videoKind != null) data.videoKind = it.videoKind;
-        if (it.postKind != null) data.postKind = it.postKind;
-        // JSON 字段只在有内容时写入，避免把既有标签/媒体清空
-        const ptU = jsonOrNull(it.platformTags);
-        if (ptU) data.platformTags = ptU;
-        const mdU = jsonOrNull(it.media);
-        if (mdU) data.media = mdU;
-        const lcU = jsonOrNull(it.linkCards);
-        if (lcU) data.linkCards = lcU;
-        // 注意：从不写 youtubePlaylistTags（由播放列表同步独占），也从不写 customTitle。
-        await prisma.item.update({ where: { id: existing.id }, data });
+        await prisma.item.update({
+          where: { id: existing.id },
+          data: buildItemUpdateData(binding, it, aiTitle, seenAt),
+        });
         updated += 1;
       } else {
         await prisma.item.create({
-          data: {
-            bindingId: binding.id,
-            roomId: binding.roomId,
-            platform: binding.platform,
-            externalId: it.externalId,
-            title: it.title,
-            aiTitle,
-            titleSource: it.title ? "original" : it.excerpt ? "rule" : null,
-            excerpt: it.excerpt,
-            url: it.url,
-            thumbnailUrl: it.thumbnailUrl,
-            durationSec: it.durationSec,
-            author: it.author,
-            raw: it.raw ?? null,
-            youtubeKind: it.youtubeKind ?? null,
-            videoKind: it.videoKind ?? null,
-            postKind: it.postKind ?? null,
-            platformTags: jsonOrNull(it.platformTags),
-            media: jsonOrNull(it.media),
-            linkCards: jsonOrNull(it.linkCards),
-            publishedAt: it.publishedAt,
-          },
+          data: buildItemCreateData(binding, it, aiTitle, seenAt),
         });
         added += 1;
       }
@@ -274,7 +223,7 @@ export async function refreshBinding(
     };
   }
 
-  const ctx = await authCtxFor(binding.platform);
+  const ctx = await authCtxFor(binding.platform, binding.authProfileId);
   const net = ctx.net;
   try {
     const fetched = await fetchForBinding(binding, window, ctx);
@@ -403,7 +352,7 @@ export async function backfillBinding(
     return zeroBackfillReport({ platform, errorMessage: msg, errorCode: classifyError(msg) });
   }
 
-  const ctx = await authCtxFor(platform);
+  const ctx = await authCtxFor(platform, binding.authProfileId);
   const net = ctx.net;
   try {
     if (platform === "bilibili") {
@@ -487,7 +436,7 @@ export async function backfillBinding(
     });
     const { added, updated, failed } = await upsertItems(binding, out.items);
     const skippedCount = Math.max(0, (out.rawCount ?? 0) - out.items.length); // playlist 里有、videos.list 查不到(删/私密)
-    const shortsCount = out.items.filter((v) => v.youtubeKind === "short").length;
+    const shortsCount = out.items.filter((v) => effectiveVideoKind(v) === "short").length;
     await prisma.sourceBinding.update({
       where: { id: binding.id },
       data: {

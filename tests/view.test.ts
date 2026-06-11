@@ -155,3 +155,12 @@ test("sample-data：elon 今日 2 条且回溯有内容；首页首位 importanc
   const ids = sorted.map((r) => r.id);
   assert.ok(ids.indexOf("anthropic") < ids.indexOf("elon"));
 });
+
+// —— Phase 3a：videoKind 归并过渡读取 —— //
+import { effectiveVideoKind } from "../src/lib/view.ts";
+
+test("effectiveVideoKind：videoKind 优先，回退 youtubeKind，都空为 null", () => {
+  assert.equal(effectiveVideoKind({ videoKind: "video", youtubeKind: "short" }), "video");
+  assert.equal(effectiveVideoKind({ videoKind: null, youtubeKind: "short" }), "short");
+  assert.equal(effectiveVideoKind({}), null);
+});
