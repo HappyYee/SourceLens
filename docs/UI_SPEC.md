@@ -36,9 +36,12 @@
 - Platform login/profile actions must never expose cookies or tokens.
 - Refresh and backfill results should be understandable without opening dev tools.
 
+## Component Inventory
+
+- Card system: `ItemCard` shell + `src/components/cards/` (registry, per-platform cards, MediaGrid/LinkPreview/TagList/StatusBadge atoms).
+- Source actions are capability-driven (`sourceActionFlags`); result lines come from pure formatters.
+
 ## TBD
 
 - Final design tokens.
 - Mobile layout polish.
-- Formal component inventory.
-- X Debug Panel layout.

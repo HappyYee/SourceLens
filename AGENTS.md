@@ -15,9 +15,9 @@ Before changing code, read these files:
 
 ## Project Status
 
-- YouTube support is usable.
-- Bilibili P0 is usable. Browser-profile fallback works for current tested cases.
-- X P0 can fetch `@elonmusk` posts through a local logged-in browser profile. Known issue: X login check can misreport `expired` even when refresh succeeds.
+- YouTube / Bilibili / X usable; feeds via thin adapters; adapter registry + `FetchReport` envelope across the stack.
+- Archive status (availability) live for YouTube; `npm run backup` / `npm run export` exist.
+- Primary code authorship is Claude's cloud branch; local agents verify, merge, and handle anything requiring real profiles or the real DB.
 
 ## Safety Rules
 

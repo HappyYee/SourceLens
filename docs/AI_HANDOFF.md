@@ -48,84 +48,44 @@ SourceLens is designed around user-controlled sources, not platform ranking. Cap
 
 ### YouTube
 
-Status: usable and locally verified after the per-request proxy fix.
+Status: usable. Latest refresh, backfill, playlist-tag sync, and availability checking.
 
-- Supports `@handle`, channel links, and `UC...` channel IDs.
-- Supports latest refresh.
-- Supports backfill.
-- Latest refresh, backfill, and playlist-tag sync now pass an explicit per-request HTTP proxy dispatcher from `resolveRefreshNetwork`.
-- If no proxy env var is exported, YouTube foreign refresh falls back to `http://127.0.0.1:33210`, matching the X foreign-refresh default.
-- YouTube network failures are wrapped with Chinese guidance instead of leaking bare `fetch failed`.
-- Local verification on 2026-06-11: with dev started from a shell without exported proxy env vars, the `@MeiTouJun` source latest refresh, backfill, and playlist-tag sync all succeeded without bare `fetch failed`.
-- G1 retry on 2026-06-11: the same three YouTube latest-refresh bindings that had transiently returned `HTTP 404` / `HTTP 500` were retried successfully; each returned `updated=15` and `lastError=null`.
-- Supports normal videos and Shorts.
-- Playlists are used as tags, not as timeline cards.
-- Dedupe key is `externalId=videoId`.
-- `customTitle` is not overwritten by refreshes.
+- Inputs: `@handle`, channel links, `UC...` IDs. Dedupe `externalId=videoId`.
+- Per-request HTTP proxy dispatcher (foreign default `http://127.0.0.1:33210` when no env proxy); network failures carry Chinese guidance, never bare `fetch failed`.
+- Normal videos + Shorts (`videoKind`, with deprecated `youtubeKind` read-fallback); playlists are tags, not cards.
+- Availability: `videos.list` absence marks items `unavailable` with a 「源头已下架」 badge; re-sighting self-heals.
 
 ### Bilibili
 
 Status: P0 usable.
 
-- UP owner public videos can be fetched.
-- Logged-in browser-profile fallback is working for current tested cases.
-- WBI `wts` duplicate-append bug has been fixed.
-- Thumbnail hotlink/referrer issue has been handled with `referrerPolicy=no-referrer`.
-- Real Bilibili Items exist in the local database.
-- Do not add downloader behavior.
-- Do not add comments, danmaku, dynamic posts, articles, or columns in the current P0 lane.
+- UP owner public videos; logged-in browser-profile fallback; WBI signing fixed; thumbnails use `referrerPolicy=no-referrer`.
+- No downloader; no comments/danmaku/dynamics/articles; availability checking deliberately deferred (rate-safe evidence design needed).
 
 ### X
 
-Status: P0 can fetch real posts; login-state display and emoji-safe write path have been locally verified.
+Status: usable through the local logged-in profile. ~264 real items including 212 quote cards.
 
-- `@elonmusk` has been fetched successfully with 264 local items after G1 backfill.
-- Code can parse text, image, video, link, and quote posts.
-- Replies and reposts are filtered by default.
-- `AuthProfile` `checkLoginStatus` no longer treats missing SPA account-menu UI as `expired`; uncertain states return `needs_check`.
-- `SingletonLock` / profile-busy launch errors now map to a friendly message instead of a long Chromium log.
-- Successful X refresh/backfill now marks the X `AuthProfile` as `logged_in` to clear stale expired UI.
-- Quote cards now support X's newer `user_results.result.core.{name,screen_name}` structure, prefer `legacy.quoted_status_permalink.expanded` for quoted URLs, normalize `twitter.com` / `x.com` status URLs to `x.com`, dedupe quoted-tweet URLs, prefer quoted `screen_name` for titles, strip trailing bare `t.co` links from excerpts, and render a fallback quote line only when no x.com quote card is present.
-- Local verification on 2026-06-11: Settings check shows logged in after refresh, profile-busy shows a friendly message when the X login window is open, and repeated refresh keeps X item `externalId` count equal to distinct count.
-- Local G1 verification on 2026-06-11: real `@elonmusk` quote stats moved from `quotedUrlNull=86`, `quotedUrlNormal=0`, `linkCardCount=0` to `quotedUrlNull=0`, `quotedUrlNormal=212`, `linkCardCount=213`, `linkCardDomains={x.com:212,grok.com:1}` after latest + two backfill attempts. Total/distinct X item count is `264/264`.
-- DB-bound truncation now uses `src/lib/text.ts` `truncate()` so emoji surrogate pairs are not split before Prisma/SQLite writes.
+- Parses text/image/video/link/quote; replies and reposts filtered by default.
+- Login check returns `needs_check` when uncertain (never false `expired`); profile-busy maps to a friendly message; successful refresh marks the profile `logged_in`.
+- Quote extraction supports both legacy and `result.core` user shapes, prefers `quoted_status_permalink`, normalizes twitter.com→x.com, dedupes quote links; excerpts strip trailing bare t.co; emoji-safe truncation before all DB writes.
 
 ### Feed-Style Sources
 
-Status: latest refresh is routed through thin platform adapters.
-
-- RSS, podcast, GitHub releases Atom, and arXiv latest refresh now have `PlatformAdapter` entries.
-- Feed adapters are latest-only; backfill remains unsupported with the existing user-facing message.
-- Fetchable platform membership is derived from the adapter registry instead of a separate fetcher list.
-- Local verification on 2026-06-11: a temporary RSS Room/binding refreshed successfully, feed backfill returned the expected unsupported error, full refresh included the RSS binding, and the temporary Room was deleted after validation.
+Status: RSS / podcast / GitHub releases / arXiv latest refresh via thin adapters (latest-only; backfill intentionally unsupported).
 
 ## 5. Current Known Problems
 
-- `npm run build` can warn that Google Fonts CSS download optimization failed when external network access to fonts.googleapis.com is flaky; build still completes.
-- X Debug Panel is optional observability work, not the current blocker.
-- Remote Fetch Worker has not been implemented.
-- P1 availability / unavailable state has not been implemented.
-- Backup script has not been implemented.
+- Transient platform/network failures (X SPA timing, occasional YouTube HTTP 404/500, GitHub transport hiccups) pass on retry; they now carry `errorCode` — record recurring patterns here with `binding.lastError`.
+- `npm run build` may warn about Google Fonts download optimization when fonts.googleapis.com is flaky; build still completes.
+- X image-grid rendering has no live local sample yet (logic covered by tests; verify visually when an image post lands).
+- Bilibili/X/RSS availability checking is deliberately not implemented (deterministic-evidence rule).
+- Remote Fetch Worker (Phase 5) is not implemented; foreign refreshes depend on the local HTTP proxy.
+- Archive import (to pair with export) is not implemented.
 
 ## 6. Current Next Task
 
-Recommended next task: Phase 2 F4b, legacy result type consolidation / `FetchReport` unification. F4a has already connected Source action UI to the client-safe capability table and extracted result formatters.
-
-Follow-up direction:
-
-- X, Bilibili, YouTube, RSS, podcast, GitHub, and arXiv now have `PlatformAdapter` implementations and registry entries.
-- `fetchForBinding` now dispatches through the adapter registry for all fetchable platforms.
-- Fetchability is derived from the registry.
-- `src/lib/report.ts` now provides shared error-code classification and a future `FetchReport` envelope; legacy result types remain in place until Phase 2 F4b.
-- Phase 2 F1 extracted shared card atoms (`CardMedia`, `MediaGrid`, `LinkPreview`, `TagList`) and pure helpers without changing card rendering conditions.
-- Phase 2 F2 moved X content blocks (`MediaGrid`, `LinkPreview`, quote fallback) into `XPostCard`; `ItemCard` now mounts the X content area as a single branch.
-- Phase 2 F3 moved remaining platform card knowledge into `src/components/cards/registry.tsx` plus pure label helpers. `ItemCard` is now a shell with no platform string literals; rendering class structure was curl-diff checked against the pre-F3 page.
-- Phase 2 G1 fixed X quote URL/card extraction in the pure parser after confirming real GraphQL structure: `screen_name` / `name` are under `user_results.result.core`, `legacy.quoted_status_permalink.{url,expanded,display}` exists, and the sampled `quoted_status_result.result` was a direct Tweet object rather than a `TweetWithVisibilityResults` wrapper.
-- Phase 2 F4a moved Source action visibility to capabilities and result message formatting to pure helpers. The client-safe capability table is the UI source of truth; the server adapter registry remains the runtime source of truth, with tests enforcing that they stay equal.
-- Preserve the working Phase 0 behavior for YouTube, Bilibili, and X.
-- Carry `truncate()` or its successor into the future `NormalizedItem` validation boundary before DB writes.
-- Do not start schema migrations unless the user explicitly provides a migration prompt.
-- Consider an X Debug Panel later for deeper observability, but it is not required for this fix.
+Usage observation period: use the system daily; record recurring pain into §5. Next build phase is chosen by observed need — see `docs/ROADMAP.md` "Next candidates" (Phase 5 remote worker needs a server decision; small pool items have foundations laid).
 
 ## 7. Role Split Between AIs
 
@@ -137,23 +97,20 @@ Follow-up direction:
 - Requirement decomposition.
 - Review Claude/Codex output before risky work.
 
-### Claude 20x Web / Claude Code
+### Claude 20x Web / Claude Code (cloud sandbox)
 
-- Read GitHub context.
-- Understand large context and propose broad plans.
-- Produce complete patch plans.
-- Perform code review.
-- Do not depend on local `.env`, `data/db`, or `data/browser-profiles`.
-- Do not claim real platform verification unless a local executor actually ran it.
+- Writes and self-tests most code on branch `claude/amazing-ride-oa1jss` (runs full `npm test` / `npm run build` in the sandbox; rehearses migrations on synthetic data).
+- Designs phases, writes review documents before risky work, reviews merged diffs.
+- Pushes only to its own branch, never directly to `main`.
+- Cannot touch local `.env`, `data/db`, `data/browser-profiles`, or real platform sessions; never claims real-machine verification.
 
-### Codex Local
+### Codex Local (verifier / merger)
 
-- Local execution.
-- Run real `npm test` / `npm run build`.
-- Debug real Bilibili / X / Playwright behavior when requested.
-- Update `docs/AI_HANDOFF.md` after meaningful local work.
-- Commit and push when requested and safe.
-- Do not read cookies or `.env`.
+- Pulls the Claude branch, re-runs tests/build locally, performs real-machine verification (profiles, real DB stats, UI walkthroughs) per checklist.
+- Stops on verification anomalies and reports back; retries transient git transport errors per the documented rule.
+- Merges to `main` after user confirmation (AI_HANDOFF conflicts: branch version wins) and pushes.
+- Executes DB migrations only after a verified backup; updates this file after meaningful local work.
+- Does not read cookies or `.env`.
 
 ### Claude Cowork Pro Local
 
@@ -270,12 +227,10 @@ Web AI collaborators working read-only should not update this file unless the us
 
 ## 12. Last Updated
 
-- Updated by: Codex Local Executor
-- Date: 2026-06-12 (Asia/Shanghai)
-- Current status: Phase 4 (backup + export) is locally verified and fast-forward merged into `main`; awaiting user-confirmed push. No schema changes.
-- What changed: `npm run backup` — hot SQLite snapshot via `VACUUM INTO` on a read-only connection (physically cannot mutate the source; safe with dev running), written to `data/backups/sourcelens-<ts>.db`, then integrity_check + five-table row-count comparison; never auto-deletes old backups; prints restore instructions. `npm run export` — read-only JSON export of Room/RoomType/SourceBinding/Item to `data/exports/`; AuthProfile excluded entirely (profileDir is machine-local, proxyUrl may embed credentials); a sensitive-key tripwire scans the bindings section only (not items.raw, which is user content and may legitimately contain such substrings). Scripts are `.mts` run via `--env-file=.env` (code never reads `.env` itself); DB path resolution mirrors Prisma file:-URL semantics via pure `resolveSqliteUrl` (tested). `data/backups/` added to `.gitignore`; storage.ts manages the new dir.
-- Local verification: with dev server running, `npm run backup` produced `integrity=ok` and matching row counts (`Room=19`, `RoomType=8`, `SourceBinding=10`, `Item=545`, `AuthProfile=2`); restore guidance pointed at the real local DB path. `npm run export` produced a JSON export with `rooms=19`, `roomTypes=8`, `bindings=10`, `items=545`, `schema=20260611150142_phase3a_item_status_auth_profile_video_kind`; grep for `profileDir|proxyUrl|proxyMode` returned 0. `data/backups/` and `data/exports/` products stayed ignored by git. Snapshot read-only restore probe matched live `Item=545` and `integrity=ok`.
-- Tests run: `npx prisma generate`; `npm test` 186/186; `npm run build` passed.
+- Updated by: Claude 20x Web Architect (Claude Code cloud sandbox, branch `claude/amazing-ride-oa1jss`)
+- Date: 2026-06-12 (UTC sandbox time)
+- Current status: Docs-alignment pass after Phase 4. ARCHITECTURE.md rewritten to describe the current adapter/registry/FetchReport/archive-status/backup system; ROADMAP.md reset around the usage observation period; DECISIONS.md gained six entries (adapter + client-safe leaf, FetchReport, additive-only migrations, availability evidence rules, backup/export boundaries, cloud-writes/local-verifies workflow); this file's §3–§7 reconciled with reality (stale "not implemented" items for availability/backup removed); README/CLAUDE/AGENTS/UI_SPEC status blocks refreshed.
+- Tests run (sandbox): docs-only change; `npm test` 186/186 re-run as ritual; build untouched by docs.
 - Known failures: none.
-- Next recommended task: Push `main` after user confirmation. Afterwards per roadmap: Phase 5 remote fetch worker design review (noAuth/apiKey foreign sources only), or accumulated small items if preferred.
-- Summary: Phase 4 — one-command hot backup with verification and a credentials-free archive export; the 3a manual backup procedure is now codified.
+- Next recommended task: usage observation (§6). Codex merge of this branch needs only a read-through, no real-machine verification.
+- Summary: documentation now matches the system that exists.

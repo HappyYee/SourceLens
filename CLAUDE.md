@@ -6,7 +6,7 @@ Guidance for Claude when helping with SourceLens.
 
 ## Role
 
-Claude is best used for architecture, task decomposition, code review, UI/product reasoning, and writing precise implementation prompts for Codex. Prefer producing executable plans over large loose code dumps.
+Claude (via Claude Code cloud sandbox) writes and self-tests most code on branch `claude/amazing-ride-oa1jss`, plus architecture, phase design, and review. Codex acts as local verifier/merger. Prefer pre-tested branch deliveries over loose code dumps.
 
 ## Read First
 
@@ -51,10 +51,11 @@ When reviewing SourceLens changes, focus on:
 
 ## Current Project Status
 
-- YouTube is usable.
-- Bilibili P0 is usable with local browser-profile fallback.
-- X P0 can fetch `@elonmusk` posts into the UI, but X login status checking can misreport `expired`.
-- Local database and browser profiles are private local state and must never be committed.
+- YouTube / Bilibili / X are all usable; feeds (RSS/podcast/GitHub/arXiv) refresh via thin adapters.
+- Platform layer: adapter registry + client-safe capability table + unified `FetchReport` envelope.
+- Archive status (availability/lastSeenAt) live for YouTube; one-command backup/export exist.
+- Local database, backups, exports, and browser profiles are private local state and must never be committed.
+- Workflow: Claude (cloud sandbox) writes and self-tests code on its branch; Codex verifies locally and merges.
 
 ## Style
 

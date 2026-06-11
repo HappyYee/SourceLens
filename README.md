@@ -6,10 +6,12 @@ The project is intended to stay private or low-profile until the repository is c
 
 ## Current Platform Support
 
-- YouTube: RSS plus optional Data API metadata enrichment.
-- Bilibili: P0 working through official web APIs plus local browser-profile fallback.
-- X: P0 can scrape user posts with the user's local logged-in Playwright profile. The current known issue is that X login checking can misreport `expired` even when refresh succeeds.
-- RSS / Atom, arXiv, GitHub, podcast RSS, and manual items are also represented in the codebase.
+- YouTube: RSS + optional Data API enrichment, backfill, playlist tags, availability checking (deleted/private videos keep their cards with a 「源头已下架」 badge).
+- Bilibili: official web APIs plus local browser-profile fallback.
+- X: real post scraping (text/image/video/link/quote) via the local logged-in Playwright profile; truthful login-state reporting.
+- RSS / Atom, arXiv, GitHub releases, podcast RSS via thin adapters; manual items supported.
+
+All platforms run through a shared adapter registry with capability-driven UI and a single result envelope. See `docs/ARCHITECTURE.md`.
 
 ## Tech Stack
 
@@ -72,6 +74,13 @@ npm test
 
 The tests use Node's built-in test runner with TypeScript stripping and experimental SQLite support.
 
+## Backup & Export
+
+```bash
+npm run backup   # hot SQLite snapshot (safe while dev runs) -> data/backups/, verified
+npm run export   # credentials-free archive JSON -> data/exports/ (AuthProfile excluded)
+```
+
 ## Build
 
 ```bash
@@ -86,6 +95,7 @@ Build output under `.next/` is ignored and should never be committed.
 src/app/                 Next.js pages and API routes
 src/components/          UI components for rooms, sources, auth profiles, and item cards
 src/lib/                 Core data, fetch, normalize, connector, view, and storage logic
+src/lib/platform/        Platform adapters, registry, client-safe capability table
 src/lib/connectors/      Platform connectors for YouTube, Bilibili, X, feeds, arXiv, GitHub
 prisma/                  Prisma schema and local migration scripts
 tests/                   Node test runner suites
