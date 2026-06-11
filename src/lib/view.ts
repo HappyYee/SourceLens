@@ -132,3 +132,11 @@ export function displayTitle(it: ItemVM): string {
     "(无标题)"
   );
 }
+
+/** 视频子类读取：videoKind 优先，回退 deprecated 的 youtubeKind（Phase 3a 归并过渡期）。 */
+export function effectiveVideoKind(it: {
+  videoKind?: string | null;
+  youtubeKind?: string | null;
+}): string | null {
+  return it.videoKind ?? it.youtubeKind ?? null;
+}
