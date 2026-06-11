@@ -69,6 +69,17 @@ function domainOf(url: string): string {
   }
 }
 
+export function normalizeXStatusUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    if (!/^https?:$/i.test(u.protocol)) return url;
+    if (!/^(?:www\.)?(?:twitter|x)\.com$/i.test(u.hostname)) return url;
+    return `https://x.com${u.pathname}${u.search}${u.hash}`;
+  } catch {
+    return url;
+  }
+}
+
 /* ----------------------------- GraphQL 解析 ----------------------------- */
 
 type AnyObj = Record<string, unknown>;
@@ -114,8 +125,13 @@ function linksFrom(legacy: AnyObj): XLink[] {
 }
 
 function authorFrom(node: AnyObj): { name: string | null; screen: string | null } {
-  const userLegacy = obj(obj(obj(obj(node.core).user_results).result).legacy);
-  return { name: str(userLegacy.name) || null, screen: str(userLegacy.screen_name) || null };
+  const userResult = obj(obj(obj(node.core).user_results).result);
+  const userLegacy = obj(userResult.legacy);
+  const userCore = obj(userResult.core);
+  return {
+    name: str(userLegacy.name) || str(userCore.name) || null,
+    screen: str(userLegacy.screen_name) || str(userCore.screen_name) || null,
+  };
 }
 
 function buildRawTweet(node: AnyObj, isThread: boolean): RawTweet | null {
@@ -136,11 +152,17 @@ function buildRawTweet(node: AnyObj, isThread: boolean): RawTweet | null {
       const qLegacy = obj(qn.legacy);
       const qa = authorFrom(qn);
       const qId = str(qn.rest_id) || str(qLegacy.id_str);
+      const permalink = obj(legacy.quoted_status_permalink);
+      const permalinkUrl = str(permalink.expanded) || str(permalink.url);
       quoted = {
         text: str(qLegacy.full_text),
         author: qa.name,
         screen: qa.screen,
-        url: qa.screen && qId ? `https://x.com/${qa.screen}/status/${qId}` : null,
+        url: permalinkUrl
+          ? normalizeXStatusUrl(permalinkUrl)
+          : qa.screen && qId
+            ? `https://x.com/${qa.screen}/status/${qId}`
+            : null,
       };
     }
   }
@@ -263,12 +285,13 @@ export function mapTweet(rt: RawTweet): NormalizedItem {
   const tags: string[] = [];
   if (rt.isThread) tags.push("Thread");
   // 引用的推文作为一张卡片（被引用小卡片，P0 简化版）。
-  const links: XLink[] = rt.quoted?.url
-    ? rt.links.filter((l) => l.url !== rt.quoted?.url)
+  const quotedUrl = rt.quoted?.url ? normalizeXStatusUrl(rt.quoted.url) : null;
+  const links: XLink[] = quotedUrl
+    ? rt.links.filter((l) => normalizeXStatusUrl(l.url) !== quotedUrl)
     : [...rt.links];
-  if (rt.quoted && rt.quoted.url) {
+  if (rt.quoted && quotedUrl) {
     links.push({
-      url: rt.quoted.url,
+      url: quotedUrl,
       domain: "x.com",
       title: quoteTitle(rt.quoted),
     });

@@ -7,6 +7,7 @@ import {
   classifyPostKind,
   filterTweets,
   mapTweet,
+  normalizeXStatusUrl,
   tweetsToItems,
   type RawTweet,
 } from "../src/lib/connectors/xpost.ts";
@@ -35,6 +36,12 @@ test("parseXInput：保留路径 / 非法 → null", () => {
 
 const ALICE = { user_results: { result: { legacy: { name: "Alice", screen_name: "alice" } } } };
 const BOB = { user_results: { result: { legacy: { name: "Bob", screen_name: "bob" } } } };
+const CORE_ALICE = {
+  user_results: { result: { legacy: {}, core: { name: "Alice Core", screen_name: "alicecore" } } },
+};
+const CORE_BOB = {
+  user_results: { result: { legacy: {}, core: { name: "Bob Core", screen_name: "corebob" } } },
+};
 
 function tweetEntry(id: string, legacy: Record<string, unknown>, core = ALICE) {
   return {
@@ -144,6 +151,60 @@ test("引用推文进入 linkCards（被引用小卡片）", () => {
   assert.equal(cards.find((c) => /\/status\/50$/.test(c.url))?.title, "引用 @bob：被引用的原文");
 });
 
+test("parseUserTweets：新版 user core + quoted_status_permalink 生成规范 quote card", () => {
+  const freshPayload = {
+    data: {
+      user: {
+        result: {
+          timeline_v2: {
+            timeline: {
+              instructions: [
+                {
+                  entries: [
+                    tweetEntry(
+                      "8",
+                      {
+                        full_text: "引用新版结构",
+                        created_at: "Wed Oct 10 20:19:24 +0000 2018",
+                        is_quote_status: true,
+                        quoted_status_permalink: {
+                          expanded: "https://twitter.com/corebob/status/88",
+                          display: "twitter.com/corebob/status/88",
+                          url: "https://t.co/quote",
+                        },
+                      },
+                      CORE_ALICE,
+                    ),
+                  ],
+                },
+              ],
+            },
+          },
+        },
+      },
+    },
+  };
+  (freshPayload.data.user.result.timeline_v2.timeline.instructions[0].entries[0] as any)
+    .content.itemContent.tweet_results.result.quoted_status_result = {
+      result: {
+        rest_id: "88",
+        legacy: { id_str: "88", full_text: "被引用新版原文" },
+        core: CORE_BOB,
+      },
+    };
+
+  const quote = parseUserTweets(freshPayload)[0];
+  assert.equal(quote.screenName, "alicecore");
+  assert.equal(quote.quoted?.screen, "corebob");
+  assert.equal(quote.quoted?.url, "https://x.com/corebob/status/88");
+
+  const n = mapTweet(quote);
+  const cards = (n.linkCards as { url: string; title: string | null }[]) ?? [];
+  assert.equal(cards.length, 1);
+  assert.equal(cards[0].url, "https://x.com/corebob/status/88");
+  assert.equal(cards[0].title, "引用 @corebob：被引用新版原文");
+});
+
 test("tweetsToItems：一步到位，默认产出 5 条（去 reply/repost）", () => {
   const items = tweetsToItems(payload);
   assert.equal(items.length, 5);
@@ -189,6 +250,20 @@ test("mapTweet：quote linkCard 去重，避免 entities.urls 与合成引用卡
   ));
   const cards = (n.linkCards as { url: string }[]) ?? [];
   assert.equal(cards.filter((c) => c.url === url).length, 1);
+  assert.ok(cards.some((c) => c.url === "https://example.com/article"));
+});
+
+test("mapTweet：twitter.com expanded quote 链接与 x.com 合成卡归一去重", () => {
+  const n = mapTweet(rawQuote(
+    { text: "原文", author: "Bob", screen: "bob", url: "https://twitter.com/bob/status/50" },
+    [
+      { url: "https://www.twitter.com/bob/status/50", domain: "twitter.com", title: "twitter.com/bob/status/50" },
+      { url: "https://example.com/article", domain: "example.com", title: "example.com/article" },
+    ],
+  ));
+  const cards = (n.linkCards as { url: string }[]) ?? [];
+  assert.equal(cards.filter((c) => c.url === "https://x.com/bob/status/50").length, 1);
+  assert.equal(cards.filter((c) => normalizeXStatusUrl(c.url) === "https://x.com/bob/status/50").length, 1);
   assert.ok(cards.some((c) => c.url === "https://example.com/article"));
 });
 
@@ -269,4 +344,11 @@ test("mapTweet：quote 标题截断不会切断 emoji 代理对", () => {
   const title = ((n.linkCards as { title: string | null }[]) ?? [])[0]?.title ?? "";
   assert.equal(title.length <= 100, true);
   assert.equal(title.isWellFormed(), true);
+});
+
+test("normalizeXStatusUrl：twitter/x 状态链接域名归一，外站保持原样", () => {
+  assert.equal(normalizeXStatusUrl("https://twitter.com/a/status/1"), "https://x.com/a/status/1");
+  assert.equal(normalizeXStatusUrl("http://www.twitter.com/a/status/1"), "https://x.com/a/status/1");
+  assert.equal(normalizeXStatusUrl("https://x.com/a/status/1"), "https://x.com/a/status/1");
+  assert.equal(normalizeXStatusUrl("https://example.com/a/status/1"), "https://example.com/a/status/1");
 });

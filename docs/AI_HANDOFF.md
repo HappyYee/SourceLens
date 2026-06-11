@@ -56,6 +56,7 @@ Status: usable and locally verified after the per-request proxy fix.
 - If no proxy env var is exported, YouTube foreign refresh falls back to `http://127.0.0.1:33210`, matching the X foreign-refresh default.
 - YouTube network failures are wrapped with Chinese guidance instead of leaking bare `fetch failed`.
 - Local verification on 2026-06-11: with dev started from a shell without exported proxy env vars, the `@MeiTouJun` source latest refresh, backfill, and playlist-tag sync all succeeded without bare `fetch failed`.
+- G1 retry on 2026-06-11: the same three YouTube latest-refresh bindings that had transiently returned `HTTP 404` / `HTTP 500` were retried successfully; each returned `updated=15` and `lastError=null`.
 - Supports normal videos and Shorts.
 - Playlists are used as tags, not as timeline cards.
 - Dedupe key is `externalId=videoId`.
@@ -77,14 +78,15 @@ Status: P0 usable.
 
 Status: P0 can fetch real posts; login-state display and emoji-safe write path have been locally verified.
 
-- `@elonmusk` has been fetched successfully with 100 local items after backfill.
+- `@elonmusk` has been fetched successfully with 264 local items after G1 backfill.
 - Code can parse text, image, video, link, and quote posts.
 - Replies and reposts are filtered by default.
 - `AuthProfile` `checkLoginStatus` no longer treats missing SPA account-menu UI as `expired`; uncertain states return `needs_check`.
 - `SingletonLock` / profile-busy launch errors now map to a friendly message instead of a long Chromium log.
 - Successful X refresh/backfill now marks the X `AuthProfile` as `logged_in` to clear stale expired UI.
-- Quote cards now dedupe quoted-tweet URLs, prefer quoted `screen_name` for titles, strip trailing bare `t.co` links from excerpts, and render a fallback quote line if no x.com quote card is present.
+- Quote cards now support X's newer `user_results.result.core.{name,screen_name}` structure, prefer `legacy.quoted_status_permalink.expanded` for quoted URLs, normalize `twitter.com` / `x.com` status URLs to `x.com`, dedupe quoted-tweet URLs, prefer quoted `screen_name` for titles, strip trailing bare `t.co` links from excerpts, and render a fallback quote line only when no x.com quote card is present.
 - Local verification on 2026-06-11: Settings check shows logged in after refresh, profile-busy shows a friendly message when the X login window is open, and repeated refresh keeps X item `externalId` count equal to distinct count.
+- Local G1 verification on 2026-06-11: real `@elonmusk` quote stats moved from `quotedUrlNull=86`, `quotedUrlNormal=0`, `linkCardCount=0` to `quotedUrlNull=0`, `quotedUrlNormal=212`, `linkCardCount=213`, `linkCardDomains={x.com:212,grok.com:1}` after latest + two backfill attempts. Total/distinct X item count is `264/264`.
 - DB-bound truncation now uses `src/lib/text.ts` `truncate()` so emoji surrogate pairs are not split before Prisma/SQLite writes.
 
 ### Feed-Style Sources
@@ -98,8 +100,6 @@ Status: latest refresh is routed through thin platform adapters.
 
 ## 5. Current Known Problems
 
-- Existing X Items already stored before the quote-card mapping fix are not rewritten automatically.
-- X quote extraction is still incomplete. Local G1 prep stats on 2026-06-11 for the real `@elonmusk` Room: 86 quote items, 0 missing raw, 0 missing `quoted`, 86 with `quoted.url` missing, 0 normal quoted URLs, and 0 link cards. This points to quote URL synthesis/parsing rather than display fallback.
 - `npm run build` can warn that Google Fonts CSS download optimization failed when external network access to fonts.googleapis.com is flaky; build still completes.
 - X Debug Panel is optional observability work, not the current blocker.
 - Remote Fetch Worker has not been implemented.
@@ -108,7 +108,7 @@ Status: latest refresh is routed through thin platform adapters.
 
 ## 6. Current Next Task
 
-Recommended next task: G1, diagnose and fix X quote-card extraction using the field-shape stats above. Do not change the F3 display shell while doing G1.
+Recommended next task: Phase 2 F4, ResultLine + capabilities-to-UI and legacy result type consolidation. Include the pending profile-busy regex cross-check test when touching shared reporting/error classification.
 
 Follow-up direction:
 
@@ -119,9 +119,9 @@ Follow-up direction:
 - Phase 2 F1 extracted shared card atoms (`CardMedia`, `MediaGrid`, `LinkPreview`, `TagList`) and pure helpers without changing card rendering conditions.
 - Phase 2 F2 moved X content blocks (`MediaGrid`, `LinkPreview`, quote fallback) into `XPostCard`; `ItemCard` now mounts the X content area as a single branch.
 - Phase 2 F3 moved remaining platform card knowledge into `src/components/cards/registry.tsx` plus pure label helpers. `ItemCard` is now a shell with no platform string literals; rendering class structure was curl-diff checked against the pre-F3 page.
+- Phase 2 G1 fixed X quote URL/card extraction in the pure parser after confirming real GraphQL structure: `screen_name` / `name` are under `user_results.result.core`, `legacy.quoted_status_permalink.{url,expanded,display}` exists, and the sampled `quoted_status_result.result` was a direct Tweet object rather than a `TweetWithVisibilityResults` wrapper.
 - Preserve the working Phase 0 behavior for YouTube, Bilibili, and X.
 - Carry `truncate()` or its successor into the future `NormalizedItem` validation boundary before DB writes.
-- Continue after G1 with Phase 2 F4: ResultLine + capabilities-to-UI and legacy result type consolidation.
 - Do not start schema migrations unless the user explicitly provides a migration prompt.
 - Consider an X Debug Panel later for deeper observability, but it is not required for this fix.
 
@@ -253,12 +253,12 @@ Web AI collaborators working read-only should not update this file unless the us
 ## 12. Last Updated
 
 - Updated by: Codex Local
-- Date: 2026-06-11 12:52:36 CST
-- Current status: Repository is on private GitHub `main`; Phase 2 Task F3 is implemented locally and awaiting user approval to push. F2 commit `934595f` was pushed. `ItemCard` is now a platform-agnostic shell that dispatches media/meta/content/link labels through `src/components/cards/registry.tsx`. CSS, `src/lib/**`, API routes, schema, and platform logic remain unchanged.
-- What changed: Added pure card label helpers in `src/components/cards/labels.ts`; added the per-platform card renderer registry in `src/components/cards/registry.tsx`; split `CardMedia.tsx` into `VideoThumb`, `XVideoThumb`, and `IconTile`; rewired `ItemCard.tsx` to use the registry; extended card label tests. `ItemCard` grep confirms no platform string literal remains.
-- Tests run: `node --test --experimental-strip-types --experimental-sqlite tests/cards.test.ts` passed with 5/5 tests; `npm test` passed with 161/161 tests; `npm run build` passed.
-- Verification results: Pre/post curl class extraction on the real X Room produced identical relevant class sequences (`beforeCount=175`, `afterCount=175`, `equal=true`). Browser verification on the real X Room covered text/quote fallback and AI-pill rendering (`items=12`, `quoteFallback=10`, `brokenImages=0`, no console errors/warnings). Because current real YouTube/Bilibili items are outside the "today" view and automated clicking did not switch the segmented control, a temporary `Codex Temp F3 Visual ...` Room was created for UI branch verification and then deleted. It covered YouTube normal + Shorts labels, Bilibili normal + Short labels with `referrerPolicy=no-referrer` on both thumbnails, X text/video/link/image/quote fallback, podcast duration chip, RSS/arXiv/GitHub square cards, and manual link label `打开链接`; final temp-room metrics were `items=14`, `thumbs=5`, `plays=5`, `durs=4`, `linkCards=1`, `mediaGrids=1`, `quoteFallback=1`, `biliNoReferrerImgs=2`, `brokenImages=0`, no console errors/warnings. The temporary Room was deleted and `remainingTempRooms=0`.
-- G1 prep stats: real `@elonmusk` quote items: `quoteItems=86`, `rawMissingOrInvalid=0`, `quotedNull=0`, `quotedUrlNull=86`, `quotedUrlNormal=0`, `linkCardCount=0`, link-card domain distribution `{}`.
-- Known failures: No active Phase 0 P0 blocker observed. X quote extraction is still incomplete as described in §5. X latest can still have occasional transient SPA/network failures that pass on retry; record `binding.lastError` and `errorCode` in this file whenever it recurs.
-- Next recommended task: G1, fix X quote URL/card extraction based on the field-shape stats, then continue Phase 2 F4.
-- Summary: Phase 2 F3 keeps card HTML stable while moving platform-specific card presentation out of `ItemCard` and into a registry.
+- Date: 2026-06-11 16:36:33 CST
+- Current status: Repository is on private GitHub `main`; Phase 2 Task G1 is implemented locally and awaiting user approval to push. F3 commit `c06fad1` was pushed. X quote extraction now works against the current GraphQL payload shape; `@elonmusk` local X item count is `264`, with `externalId` distinct count also `264`.
+- What changed: In `src/lib/connectors/xpost.ts`, `authorFrom` now falls back from legacy user fields to `user_results.result.core.{name,screen_name}`; quote URL construction now prefers `legacy.quoted_status_permalink.expanded`; `normalizeXStatusUrl()` canonicalizes `twitter.com` and `x.com` status URLs to `https://x.com/...`; quote link-card dedupe compares normalized URLs. Tests cover new-core payloads, old legacy payloads, permalink URL normalization, and twitter/x dedupe.
+- Step 0 diagnostic: A temporary script sampled the first real `UserTweets` payload and was deleted before staging. It confirmed `$.tweet.core.user_results.result.core.name`, `$.tweet.core.user_results.result.core.screen_name`, `$.tweet.legacy.quoted_status_permalink.{url,expanded,display}`, and `$.quotedTweet.core.user_results.result.core.{name,screen_name}`. The sampled `quoted_status_result.result` was a direct Tweet object, not wrapped in `TweetWithVisibilityResults`.
+- Tests run: `node --test --experimental-strip-types --experimental-sqlite tests/xpost.test.ts` passed with 19/19 tests; `npm test` passed with 164/164 tests; `npm run build` passed.
+- Verification results: X latest returned `added=0 updated=0`, first X backfill returned `created=5 updated=3 fetched=21`, second X backfill returned `created=155 updated=109 fetched=671`. Final quote stats for the real `@elonmusk` Room: `quoteItems=214`, `quotedNull=2`, `quotedUrlNull=0`, `quotedUrlNormal=212`, `linkCardCount=213`, `linkCardDomains={x.com:212,grok.com:1}`. Browser check on the X Room showed `items=17`, `xQuoteMetas=13`, `quoteFallback=0`, `linkCards=14`, `cardDomains={x.com:14}`, `brokenImages=0`, no console errors/warnings. Bilibili latest regression check passed with `added=0 updated=50`.
+- Known failures: No active YouTube regression remains after the G1 retry; the earlier `HTTP 404` / `HTTP 500` latest-refresh failures were transient and all three retried successfully with `updated=15`. X latest can still have occasional transient SPA/network failures that pass on retry; record `binding.lastError` and `errorCode` in this file whenever it recurs.
+- Next recommended task: Phase 2 F4, ResultLine + capabilities-to-UI and legacy result type consolidation.
+- Summary: Phase 2 G1 resolves the structural X quote-card failure; old quote cards were repaired by real backfill without schema migration.
