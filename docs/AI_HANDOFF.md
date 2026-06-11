@@ -213,6 +213,8 @@ npm run build
 
 When switching to a branch with Prisma schema changes, run `npx prisma generate` before `npm run build`; generating the client updates local types only and does not touch the database.
 
+If GitHub HTTPS fetch/pull/push fails with a transient transport error such as `HTTP2 framing layer`, retry up to 4 times with backoff. If it repeats, use a one-command fallback such as `git -c http.version=HTTP/1.1 fetch origin <branch>`; do not change global git config unless the user asks.
+
 Data scripts:
 
 ```bash
@@ -256,11 +258,11 @@ Web AI collaborators working read-only should not update this file unless the us
 
 ## 12. Last Updated
 
-- Updated by: Claude 20x Web Architect (Claude Code cloud sandbox, branch `claude/amazing-ride-oa1jss`)
-- Date: 2026-06-12 (UTC sandbox time)
-- Current status: Phase 3b (availability writer + StatusBadge) implemented on the branch; awaiting Codex local verification and merge. No schema changes (columns landed in 3a).
+- Updated by: Codex Local Executor
+- Date: 2026-06-12 (Asia/Shanghai)
+- Current status: Phase 3b (availability writer + StatusBadge) is locally verified and fast-forward merged into `main`; awaiting user-confirmed push. No schema changes in 3b (columns landed in 3a).
 - What changed: YouTube-only availability checking per the approved boundary — adapter gained optional `checkAvailability` (videos.list `part=id`, 50/batch, deterministic absence = deleted/private); new pure `src/lib/availability.ts` partition (found → available + clear missingSince for self-healing; missing → unavailable + preserve first-seen missingSince; unevaluated → skipped, never defaults to unavailable); `checkAvailabilityForBinding` in fetcher is the sole writer of availability/lastCheckedAt/missingSince and does NOT touch binding.lastError/lastFetchedAt; new route `POST /api/sources/[id]/check-availability`; capabilities gained `availabilityCheck` (youtube true); SourceItem gained a capability-gated 「检查可用性」 button + `formatAvailabilityResult`; ItemVM passes through `availability`/`missingSince`; `StatusBadge` shows 「源头已下架」 only for unavailable items (with first-seen tooltip); `RefreshAction` gained `check_availability`; FetchReport gained `checkedCount`/`missingCount`.
-- Tests run (sandbox): `npm test` 182/182; `npm run build` passed. Pending Codex: real check on a YouTube source (expect all available), tamper-one-externalId rehearsal (record original → expect unavailable + badge + missingSince → restore → expect self-heal to available), Bilibili/X/feeds sources must NOT show the new button, three-platform latest regression.
-- Known failures: none in sandbox.
-- Next recommended task: Codex verifies and merges to `main` (AI_HANDOFF §12 conflict: branch version wins). After that: Phase 4 (backup script + JSON export) per roadmap.
+- Tests run: `npx prisma generate`; `npm test` 182/182; `npm run build` passed. Local UI/API verification passed: button gating showed only YouTube sources get 「检查可用性」; a YouTube source checked 50/50 available; tampering one local `externalId` produced 「1 条源头已下架」 plus unavailable/missingSince/badge; restoring the ID self-healed to 50/50 available and cleared the badge; X/Bilibili/YouTube latest refreshes returned failedCount=0.
+- Known failures: none. One GitHub HTTPS fetch hit a transient `HTTP2 framing layer` error; retry succeeded, and §9 now records the HTTP/1.1 one-command fallback.
+- Next recommended task: Push `main` after user confirmation. After that: Phase 4 (backup script + JSON export) per roadmap.
 - Summary: Phase 3b — availability becomes fact for YouTube with deterministic evidence only; the archive keeps unavailable items and labels them honestly.
