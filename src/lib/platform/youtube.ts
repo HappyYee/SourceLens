@@ -51,4 +51,14 @@ export const youtubeAdapter: PlatformAdapter = {
       proxyUrl: ctx.proxyUrl,
     });
   },
+
+  async checkAvailability(externalIds, ctx) {
+    const apiKey = process.env.YOUTUBE_API_KEY;
+    if (!apiKey) throw new Error("缺少 YOUTUBE_API_KEY（在 .env 配置后重启 dev）");
+    const { listExistingYouTubeVideoIds } = await import("../connectors/index");
+    const existing = await listExistingYouTubeVideoIds(externalIds, apiKey, ctx.proxyUrl);
+    const found = new Set(externalIds.filter((id) => existing.has(id)));
+    const missing = new Set(externalIds.filter((id) => !existing.has(id)));
+    return { found, missing };
+  },
 };

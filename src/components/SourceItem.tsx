@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  formatAvailabilityResult,
   formatBackfillResult,
   formatRefreshLatestResult,
   formatSyncTagsResult,
@@ -71,6 +72,23 @@ export default function SourceItem({
       });
       const j = await res.json().catch(() => ({}));
       setMsg(formatSyncTagsResult(res.ok && !j.errorMessage, j));
+      onChanged();
+    } catch {
+      setMsg("网络错误");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function checkAvailability() {
+    setBusy(true);
+    setMsg("检查可用性中…");
+    try {
+      const res = await fetch(`/api/sources/${source.id}/check-availability`, {
+        method: "POST",
+      });
+      const j = await res.json().catch(() => ({}));
+      setMsg(formatAvailabilityResult(res.ok && !j.errorMessage, j));
       onChanged();
     } catch {
       setMsg("网络错误");
@@ -155,6 +173,11 @@ export default function SourceItem({
         {flags.canSyncTags ? (
           <button type="button" className="src-btn" disabled={busy} onClick={syncTags}>
             同步播放列表标签
+          </button>
+        ) : null}
+        {flags.canCheckAvailability ? (
+          <button type="button" className="src-btn" disabled={busy} onClick={checkAvailability}>
+            检查可用性
           </button>
         ) : null}
         <button type="button" className="src-x" title="删除来源" disabled={busy} onClick={remove}>

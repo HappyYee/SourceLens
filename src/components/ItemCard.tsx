@@ -2,6 +2,7 @@ import type { ItemVM } from "@/lib/types";
 import { displayTitle, formatDuration } from "@/lib/view";
 import { IconArrow, PlatformIcon } from "./icons";
 import { getCardRenderer } from "./cards/registry";
+import { StatusBadge } from "./cards/StatusBadge";
 import { TagList } from "./cards/TagList";
 
 export default function ItemCard({
@@ -28,6 +29,7 @@ export default function ItemCard({
             <PlatformIcon platform={it.platform} /> {r.srcLabel(it)}
           </span>
           {r.metaExtra?.(it, dur)}
+          <StatusBadge it={it} />
           <span className="it-time">{timeLabel}</span>
         </div>
         <div className="it-title">

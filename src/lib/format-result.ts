@@ -21,6 +21,14 @@ interface BackfillResultLike {
   hint?: string;
 }
 
+interface AvailabilityResultLike {
+  networkLabel?: string;
+  checkedCount?: number;
+  missingCount?: number;
+  errorMessage?: string;
+  hint?: string;
+}
+
 interface SyncTagsResultLike {
   networkLabel?: string;
   playlistCount?: number;
@@ -59,4 +67,16 @@ export function formatSyncTagsResult(ok: boolean, j: SyncTagsResultLike): string
   return ok
     ? `${tag}播放列表：${j.playlistCount} 个 · 打标 ${j.taggedCount} 条`
     : `${tag}${j.errorMessage || "同步失败"}${j.hint ? "。" + j.hint : ""}`;
+}
+
+export function formatAvailabilityResult(ok: boolean, j: AvailabilityResultLike): string {
+  const tag = resultTag(j);
+  if (!ok) {
+    return `${tag}${j.errorMessage || "检查失败"}${j.hint ? "。" + j.hint : ""}`;
+  }
+  const checked = j.checkedCount ?? 0;
+  const missing = j.missingCount ?? 0;
+  return missing > 0
+    ? `${tag}可用性：已检查 ${checked} 条 · ${missing} 条源头已下架`
+    : `${tag}可用性：已检查 ${checked} 条 · 全部可用`;
 }

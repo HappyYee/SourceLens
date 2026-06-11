@@ -48,6 +48,10 @@ export interface ItemVM {
   author?: string | null;
   /** ISO 字符串，方便在 server→client 间序列化传递。 */
   publishedAt: string;
+  /** 档案可用性（Phase 3b）：available | unavailable | unknown；null/缺省=从未评估。 */
+  availability?: string | null;
+  /** 首次"源头确认缺失"时间（ISO），仅 unavailable 时有意义。 */
+  missingSince?: string | null;
 }
 
 /** 一个节点：folder(分区) 或 room(内容房间)。room 才聚合 Source 时间线。 */

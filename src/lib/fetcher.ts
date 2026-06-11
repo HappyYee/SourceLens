@@ -6,6 +6,7 @@ import {
   resolveBackfillLimit,
 } from "./connectors/youtube";
 import { ruleTitle } from "./ai/title";
+import { buildAvailabilityUpdates } from "./availability.ts";
 import { pickAuthProfile } from "./authprofile.ts";
 import { BrowserError } from "./browser.ts";
 import { buildItemCreateData, buildItemUpdateData } from "./item-data.ts";
@@ -581,5 +582,87 @@ export async function syncPlaylistTagsForBinding(
       networkLabel: net.humanLabel,
       hint: networkHint(net.region, msg),
     });
+  }
+}
+
+/**
+ * 可用性检查（Phase 3b）：对该 source 已入库条目批查平台是否仍可见。
+ * 写入独占权在此兑现：本函数是 availability / lastCheckedAt / missingSince 的唯一写入者；
+ * 不碰 binding.lastError / lastFetchedAt（这不是一次抓取）。
+ */
+export async function checkAvailabilityForBinding(bindingId: string): Promise<FetchReport> {
+  const binding = await prisma.sourceBinding.findUnique({ where: { id: bindingId } });
+  if (!binding) {
+    const msg = "binding 不存在";
+    return {
+      ok: false,
+      platform: "?",
+      action: "check_availability",
+      errorMessage: msg,
+      errorCode: classifyError(msg),
+    };
+  }
+  const adapter = getAdapter(binding.platform);
+  if (!adapter?.checkAvailability) {
+    const msg = "可用性检查目前仅支持 YouTube source";
+    return {
+      ok: false,
+      platform: binding.platform,
+      action: "check_availability",
+      errorMessage: msg,
+      errorCode: classifyError(msg),
+    };
+  }
+
+  const net = resolveRefreshNetwork({ platform: binding.platform });
+  try {
+    const items = await prisma.item.findMany({
+      where: { bindingId: binding.id, roomId: binding.roomId },
+      select: { id: true, externalId: true, missingSince: true },
+    });
+    if (items.length === 0) {
+      return {
+        ok: true,
+        platform: binding.platform,
+        action: "check_availability",
+        checkedCount: 0,
+        missingCount: 0,
+        networkLabel: net.humanLabel,
+      };
+    }
+    const { found, missing } = await adapter.checkAvailability(
+      items.map((i) => i.externalId),
+      { proxyUrl: net.shouldUseProxy ? net.proxyUrl : undefined, useProxy: net.shouldUseProxy },
+    );
+    const updates = buildAvailabilityUpdates(items, found, missing, new Date());
+    for (const u of updates) {
+      await prisma.item.update({
+        where: { id: u.id },
+        data: {
+          availability: u.availability,
+          lastCheckedAt: u.lastCheckedAt,
+          missingSince: u.missingSince,
+        },
+      });
+    }
+    return {
+      ok: true,
+      platform: binding.platform,
+      action: "check_availability",
+      checkedCount: items.length,
+      missingCount: missing.size,
+      networkLabel: net.humanLabel,
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return {
+      ok: false,
+      platform: binding.platform,
+      action: "check_availability",
+      errorMessage: msg,
+      errorCode: errorCodeFor(e, msg),
+      networkLabel: net.humanLabel,
+      hint: networkHint(net.region, msg),
+    };
   }
 }

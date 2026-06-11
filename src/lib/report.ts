@@ -66,6 +66,8 @@ export interface FetchReport {
   shortsCount?: number;
   taggedCount?: number;
   playlistCount?: number;
+  checkedCount?: number; //  可用性检查：本次检查条数
+  missingCount?: number; //  可用性检查：确认缺失（源头已删/私密）条数
   errorCode?: ErrorCode;
   errorMessage?: string;
   hint?: string;

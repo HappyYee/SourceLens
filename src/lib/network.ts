@@ -63,7 +63,12 @@ export function resolveRefreshNetwork(opts: {
   return { region, shouldUseProxy: false, humanLabel };
 }
 
-export type RefreshAction = "check_auth" | "refresh_latest" | "backfill" | "sync_tags";
+export type RefreshAction =
+  | "check_auth"
+  | "refresh_latest"
+  | "backfill"
+  | "sync_tags"
+  | "check_availability";
 
 /** 由区域 + 错误信息生成网络相关提示（仅网络类错误才提示）。 */
 export function networkHint(

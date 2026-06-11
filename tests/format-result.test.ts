@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  formatAvailabilityResult,
   formatBackfillResult,
   formatRefreshLatestResult,
   formatSyncTagsResult,
@@ -69,4 +70,19 @@ test("formatSyncTagsResult：成功/失败文案保持 SourceItem 原样", () =>
     "同步坏了。检查 API key",
   );
   assert.equal(formatSyncTagsResult(false, {}), "同步失败");
+});
+
+test("formatAvailabilityResult：全部可用 / 有下架 / 失败", () => {
+  assert.equal(
+    formatAvailabilityResult(true, { networkLabel: "国外刷新", checkedCount: 169, missingCount: 0 }),
+    "国外刷新 · 可用性：已检查 169 条 · 全部可用",
+  );
+  assert.equal(
+    formatAvailabilityResult(true, { networkLabel: "国外刷新", checkedCount: 169, missingCount: 2 }),
+    "国外刷新 · 可用性：已检查 169 条 · 2 条源头已下架",
+  );
+  assert.equal(
+    formatAvailabilityResult(false, { errorMessage: "缺少 YOUTUBE_API_KEY（在 .env 配置后重启 dev）" }),
+    "缺少 YOUTUBE_API_KEY（在 .env 配置后重启 dev）",
+  );
 });

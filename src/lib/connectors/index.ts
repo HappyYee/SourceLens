@@ -326,6 +326,26 @@ async function resolveChannelInfo(sourceInput: string, apiKey: string, proxyUrl?
   };
 }
 
+/** videos.list 只取 id：返回平台确认仍存在（公开可见）的 videoId 集合。50/批。 */
+export async function listExistingYouTubeVideoIds(
+  ids: string[],
+  apiKey: string,
+  proxyUrl?: string,
+): Promise<Set<string>> {
+  const found = new Set<string>();
+  for (let i = 0; i < ids.length; i += 50) {
+    const chunk = ids.slice(i, i + 50);
+    const data = (await ytApiJson(
+      `${YT_API}/videos?part=id&id=${chunk.join(",")}&key=${apiKey}`,
+      proxyUrl,
+    )) as { items?: { id?: string }[] };
+    for (const it of data.items ?? []) {
+      if (typeof it.id === "string" && it.id) found.add(it.id);
+    }
+  }
+  return found;
+}
+
 export interface BackfillResult {
   videos: NormalizedItem[];
   fetchedCount: number;

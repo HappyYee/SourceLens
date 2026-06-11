@@ -379,3 +379,7 @@ body{
 .rm-range input{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:6px;padding:4px 6px;background:var(--paper)}
 .rm-go{margin-top:2px;border:1px solid var(--ink);background:var(--ink);color:var(--paper);border-radius:7px;padding:7px 10px;font-size:12.5px;cursor:pointer;font-family:var(--cjk)}
 .rm-go:hover{opacity:.9}
+
+/* 档案可用性徽章（Phase 3b）：仅 unavailable 显示 */
+.it-status{font-family:var(--mono);font-size:10px;border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:var(--ink-3)}
+.it-status.unavailable{color:#a23;border-color:#e3c0c0;background:#fbeaea}

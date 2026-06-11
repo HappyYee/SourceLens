@@ -5,6 +5,7 @@ export interface SourceActionFlags {
   canBackfill: boolean;
   allowBackfillAll: boolean;
   canSyncTags: boolean;
+  canCheckAvailability: boolean;
 }
 
 export function sourceActionFlags(platform: string): SourceActionFlags {
@@ -15,6 +16,7 @@ export function sourceActionFlags(platform: string): SourceActionFlags {
       canBackfill: false,
       allowBackfillAll: false,
       canSyncTags: false,
+      canCheckAvailability: false,
     };
   }
   return {
@@ -22,5 +24,6 @@ export function sourceActionFlags(platform: string): SourceActionFlags {
     canBackfill: cap.backfill,
     allowBackfillAll: cap.backfillAll,
     canSyncTags: cap.tagsSync,
+    canCheckAvailability: cap.availabilityCheck,
   };
 }

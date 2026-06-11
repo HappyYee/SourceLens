@@ -8,18 +8,21 @@ test("sourceActionFlags：8 平台按钮能力矩阵", () => {
     canBackfill: true,
     allowBackfillAll: true,
     canSyncTags: true,
+    canCheckAvailability: true,
   });
   assert.deepEqual(sourceActionFlags("bilibili"), {
     canRefreshLatest: true,
     canBackfill: true,
     allowBackfillAll: true,
     canSyncTags: false,
+    canCheckAvailability: false,
   });
   assert.deepEqual(sourceActionFlags("x"), {
     canRefreshLatest: true,
     canBackfill: true,
     allowBackfillAll: false,
     canSyncTags: false,
+    canCheckAvailability: false,
   });
   for (const platform of ["rss", "podcast", "github", "arxiv"]) {
     assert.deepEqual(sourceActionFlags(platform), {
@@ -27,6 +30,7 @@ test("sourceActionFlags：8 平台按钮能力矩阵", () => {
       canBackfill: false,
       allowBackfillAll: false,
       canSyncTags: false,
+      canCheckAvailability: false,
     });
   }
   assert.deepEqual(sourceActionFlags("manual"), {
@@ -34,5 +38,6 @@ test("sourceActionFlags：8 平台按钮能力矩阵", () => {
     canBackfill: false,
     allowBackfillAll: false,
     canSyncTags: false,
+    canCheckAvailability: false,
   });
 });
