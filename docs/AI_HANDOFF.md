@@ -99,6 +99,7 @@ Status: latest refresh is routed through thin platform adapters.
 ## 5. Current Known Problems
 
 - Existing X Items already stored before the quote-card mapping fix are not rewritten automatically.
+- X quote extraction is still incomplete. Local G1 prep stats on 2026-06-11 for the real `@elonmusk` Room: 86 quote items, 0 missing raw, 0 missing `quoted`, 86 with `quoted.url` missing, 0 normal quoted URLs, and 0 link cards. This points to quote URL synthesis/parsing rather than display fallback.
 - `npm run build` can warn that Google Fonts CSS download optimization failed when external network access to fonts.googleapis.com is flaky; build still completes.
 - X Debug Panel is optional observability work, not the current blocker.
 - Remote Fetch Worker has not been implemented.
@@ -107,7 +108,7 @@ Status: latest refresh is routed through thin platform adapters.
 
 ## 6. Current Next Task
 
-Recommended next task: Phase 2 Task F3, turn `ItemCard` into a shell plus per-platform card registry dispatch after the user provides the F3 prompt.
+Recommended next task: G1, diagnose and fix X quote-card extraction using the field-shape stats above. Do not change the F3 display shell while doing G1.
 
 Follow-up direction:
 
@@ -117,9 +118,10 @@ Follow-up direction:
 - `src/lib/report.ts` now provides shared error-code classification and a future `FetchReport` envelope; legacy result types remain in place until the Phase 2 UI ResultLine window.
 - Phase 2 F1 extracted shared card atoms (`CardMedia`, `MediaGrid`, `LinkPreview`, `TagList`) and pure helpers without changing card rendering conditions.
 - Phase 2 F2 moved X content blocks (`MediaGrid`, `LinkPreview`, quote fallback) into `XPostCard`; `ItemCard` now mounts the X content area as a single branch.
+- Phase 2 F3 moved remaining platform card knowledge into `src/components/cards/registry.tsx` plus pure label helpers. `ItemCard` is now a shell with no platform string literals; rendering class structure was curl-diff checked against the pre-F3 page.
 - Preserve the working Phase 0 behavior for YouTube, Bilibili, and X.
 - Carry `truncate()` or its successor into the future `NormalizedItem` validation boundary before DB writes.
-- Continue Phase 2 with ItemCard shell/registry, then ResultLine + capabilities-to-UI.
+- Continue after G1 with Phase 2 F4: ResultLine + capabilities-to-UI and legacy result type consolidation.
 - Do not start schema migrations unless the user explicitly provides a migration prompt.
 - Consider an X Debug Panel later for deeper observability, but it is not required for this fix.
 
@@ -251,11 +253,12 @@ Web AI collaborators working read-only should not update this file unless the us
 ## 12. Last Updated
 
 - Updated by: Codex Local
-- Date: 2026-06-11 12:07:19 CST
-- Current status: Repository is on private GitHub `main`; Phase 2 Task F2 is implemented locally and awaiting user approval to push. F1 was pushed. `ItemCard` no longer contains X media/link/quote fallback details; it mounts `<XPostCard it={it} />` for the X content area. CSS, data/API code, schema, and platform logic remain unchanged.
-- What changed: Added `src/components/cards/XPostCard.tsx`; moved X photos/links/quote-fallback calculations and rendering into that component; replaced the three X content blocks in `ItemCard.tsx` with a single guarded `<XPostCard it={it} />`. No `globals.css`, `src/lib/**`, API route, or schema files were modified.
-- Tests run: `npm test` passed with 158/158 tests; `npm run build` passed.
-- Verification results: Browser check on the X Room after loading older items covered text/quote/video/link states: `thumb=11`, `play=11`, `linkCards=2`, `quoteFallback=76`, `brokenImages=0`, no console errors/warnings. The local database currently has no X image-post sample, so the image grid branch was not live-visual-verified this round; the migrated condition is unchanged and `ItemCard` grep confirms it no longer references `it.media`, `it.linkCards`, or `it-quote-fallback`. YouTube and Bilibili backfill views remained unchanged (`50` video cards each, Bilibili thumbnails still `referrerPolicy=no-referrer`, no broken images); a temporary real RSS + podcast verification Room produced RSS `sq s1` and podcast `sq s2` square cards, then was deleted.
-- Known failures: No active Phase 0 P0 blocker observed. Existing X Items outside the verified `@elonmusk` backfill window may still need a future refresh/backfill to receive newer quote-card normalization. X latest can still have occasional transient SPA/network failures that pass on retry; record `binding.lastError` and `errorCode` in this file whenever it recurs.
-- Next recommended task: Wait for the user's Phase 2 Task F3 prompt, expected to introduce the ItemCard shell + card registry dispatch.
-- Summary: Phase 2 F2 keeps rendering behavior stable while shrinking `ItemCard`'s X-specific content knowledge to one guarded component mount.
+- Date: 2026-06-11 12:52:36 CST
+- Current status: Repository is on private GitHub `main`; Phase 2 Task F3 is implemented locally and awaiting user approval to push. F2 commit `934595f` was pushed. `ItemCard` is now a platform-agnostic shell that dispatches media/meta/content/link labels through `src/components/cards/registry.tsx`. CSS, `src/lib/**`, API routes, schema, and platform logic remain unchanged.
+- What changed: Added pure card label helpers in `src/components/cards/labels.ts`; added the per-platform card renderer registry in `src/components/cards/registry.tsx`; split `CardMedia.tsx` into `VideoThumb`, `XVideoThumb`, and `IconTile`; rewired `ItemCard.tsx` to use the registry; extended card label tests. `ItemCard` grep confirms no platform string literal remains.
+- Tests run: `node --test --experimental-strip-types --experimental-sqlite tests/cards.test.ts` passed with 5/5 tests; `npm test` passed with 161/161 tests; `npm run build` passed.
+- Verification results: Pre/post curl class extraction on the real X Room produced identical relevant class sequences (`beforeCount=175`, `afterCount=175`, `equal=true`). Browser verification on the real X Room covered text/quote fallback and AI-pill rendering (`items=12`, `quoteFallback=10`, `brokenImages=0`, no console errors/warnings). Because current real YouTube/Bilibili items are outside the "today" view and automated clicking did not switch the segmented control, a temporary `Codex Temp F3 Visual ...` Room was created for UI branch verification and then deleted. It covered YouTube normal + Shorts labels, Bilibili normal + Short labels with `referrerPolicy=no-referrer` on both thumbnails, X text/video/link/image/quote fallback, podcast duration chip, RSS/arXiv/GitHub square cards, and manual link label `打开链接`; final temp-room metrics were `items=14`, `thumbs=5`, `plays=5`, `durs=4`, `linkCards=1`, `mediaGrids=1`, `quoteFallback=1`, `biliNoReferrerImgs=2`, `brokenImages=0`, no console errors/warnings. The temporary Room was deleted and `remainingTempRooms=0`.
+- G1 prep stats: real `@elonmusk` quote items: `quoteItems=86`, `rawMissingOrInvalid=0`, `quotedNull=0`, `quotedUrlNull=86`, `quotedUrlNormal=0`, `linkCardCount=0`, link-card domain distribution `{}`.
+- Known failures: No active Phase 0 P0 blocker observed. X quote extraction is still incomplete as described in §5. X latest can still have occasional transient SPA/network failures that pass on retry; record `binding.lastError` and `errorCode` in this file whenever it recurs.
+- Next recommended task: G1, fix X quote URL/card extraction based on the field-shape stats, then continue Phase 2 F4.
+- Summary: Phase 2 F3 keeps card HTML stable while moving platform-specific card presentation out of `ItemCard` and into a registry.

@@ -1,46 +1,53 @@
-import type { ItemVM } from "@/lib/types";
+import type { Platform } from "@/lib/types";
 import { IconPlay, PlatformIcon } from "../icons";
 import { hideBrokenImage, sqClass, thumbClass } from "./shared";
 
-export function CardMedia({ it, dur }: { it: ItemVM; dur: string | null }) {
-  const isVideoCard = it.platform === "youtube" || it.platform === "bilibili";
-  const thumbnailReferrerPolicy = it.platform === "bilibili" ? "no-referrer" : undefined;
-
-  if (isVideoCard) {
-    return (
-      <div className={`thumb ${thumbClass(it.thumbVariant)}`}>
-        {it.thumbnailUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={it.thumbnailUrl}
-            alt=""
-            referrerPolicy={thumbnailReferrerPolicy}
-            onError={hideBrokenImage}
-          />
-        ) : null}
-        <div className="play">
-          <IconPlay />
-        </div>
-        {dur ? <div className="dur">{dur}</div> : null}
-      </div>
-    );
-  }
-
-  if (it.platform === "x" && it.postKind === "video" && it.thumbnailUrl) {
-    return (
-      <div className="thumb t1">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={it.thumbnailUrl} alt="" onError={hideBrokenImage} />
-        <div className="play">
-          <IconPlay />
-        </div>
-      </div>
-    );
-  }
-
+export function VideoThumb({
+  thumbnailUrl,
+  dur,
+  thumbVariant,
+  referrerPolicy,
+}: {
+  thumbnailUrl?: string | null;
+  dur: string | null;
+  thumbVariant?: number | null;
+  referrerPolicy?: "no-referrer";
+}) {
   return (
-    <div className={`sq ${sqClass(it.platform)}`}>
-      <PlatformIcon platform={it.platform} />
+    <div className={`thumb ${thumbClass(thumbVariant)}`}>
+      {thumbnailUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={thumbnailUrl}
+          alt=""
+          referrerPolicy={referrerPolicy}
+          onError={hideBrokenImage}
+        />
+      ) : null}
+      <div className="play">
+        <IconPlay />
+      </div>
+      {dur ? <div className="dur">{dur}</div> : null}
+    </div>
+  );
+}
+
+export function XVideoThumb({ thumbnailUrl }: { thumbnailUrl: string }) {
+  return (
+    <div className="thumb t1">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={thumbnailUrl} alt="" onError={hideBrokenImage} />
+      <div className="play">
+        <IconPlay />
+      </div>
+    </div>
+  );
+}
+
+export function IconTile({ platform }: { platform: Platform }) {
+  return (
+    <div className={`sq ${sqClass(platform)}`}>
+      <PlatformIcon platform={platform} />
     </div>
   );
 }
