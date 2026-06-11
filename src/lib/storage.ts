@@ -21,7 +21,7 @@ export function assertDataDir(): string {
       `SourceLens 数据目录不存在（移动硬盘是否已挂载？）：${dir}。已停止，未在项目目录内静默建库。`,
     );
   }
-  for (const sub of ["", "db", "cache/thumbnails", "exports", "logs", "browser-profiles"]) {
+  for (const sub of ["", "db", "cache/thumbnails", "exports", "backups", "logs", "browser-profiles"]) {
     const p = sub ? join(dir, sub) : dir;
     if (!existsSync(p)) mkdirSync(p, { recursive: true });
   }
@@ -32,6 +32,7 @@ export const dataPaths = {
   db: () => join(getDataDir(), "db"),
   thumbnails: () => join(getDataDir(), "cache", "thumbnails"),
   exports: () => join(getDataDir(), "exports"),
+  backups: () => join(getDataDir(), "backups"),
   logs: () => join(getDataDir(), "logs"),
   browserProfiles: () => join(getDataDir(), "browser-profiles"),
 };

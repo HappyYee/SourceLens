@@ -16,7 +16,9 @@
     "migrate:nodekind": "node prisma/migrate-node-kind.mjs",
     "fetch": "node scripts/fetch.mjs",
     "verify:youtube": "node scripts/verify-youtube.mjs",
-    "test": "node --test --experimental-strip-types --experimental-sqlite \"tests/**/*.test.ts\""
+    "test": "node --test --experimental-strip-types --experimental-sqlite \"tests/**/*.test.ts\"",
+    "backup": "node --env-file=.env --experimental-strip-types --experimental-sqlite scripts/backup.mts",
+    "export": "node --env-file=.env --experimental-strip-types --experimental-sqlite scripts/export.mts"
   },
   "prisma": {
     "seed": "node prisma/seed-empty.mjs"

@@ -218,6 +218,18 @@ If GitHub HTTPS fetch/pull/push fails with a transient transport error such as `
 Data scripts:
 
 ```bash
+npm run backup
+```
+
+Safe anytime (hot backup): VACUUM INTO snapshot under `data/backups/` + integrity/row-count verification. Old backups are never auto-deleted.
+
+```bash
+npm run export
+```
+
+Read-only archive export (Room/RoomType/SourceBinding/Item; AuthProfile excluded by design) to `data/exports/`.
+
+```bash
 npm run reset:user-data
 ```
 
@@ -258,11 +270,12 @@ Web AI collaborators working read-only should not update this file unless the us
 
 ## 12. Last Updated
 
-- Updated by: Codex Local Executor
-- Date: 2026-06-12 (Asia/Shanghai)
-- Current status: Phase 3b (availability writer + StatusBadge) is locally verified and fast-forward merged into `main`; awaiting user-confirmed push. No schema changes in 3b (columns landed in 3a).
-- What changed: YouTube-only availability checking per the approved boundary — adapter gained optional `checkAvailability` (videos.list `part=id`, 50/batch, deterministic absence = deleted/private); new pure `src/lib/availability.ts` partition (found → available + clear missingSince for self-healing; missing → unavailable + preserve first-seen missingSince; unevaluated → skipped, never defaults to unavailable); `checkAvailabilityForBinding` in fetcher is the sole writer of availability/lastCheckedAt/missingSince and does NOT touch binding.lastError/lastFetchedAt; new route `POST /api/sources/[id]/check-availability`; capabilities gained `availabilityCheck` (youtube true); SourceItem gained a capability-gated 「检查可用性」 button + `formatAvailabilityResult`; ItemVM passes through `availability`/`missingSince`; `StatusBadge` shows 「源头已下架」 only for unavailable items (with first-seen tooltip); `RefreshAction` gained `check_availability`; FetchReport gained `checkedCount`/`missingCount`.
-- Tests run: `npx prisma generate`; `npm test` 182/182; `npm run build` passed. Local UI/API verification passed: button gating showed only YouTube sources get 「检查可用性」; a YouTube source checked 50/50 available; tampering one local `externalId` produced 「1 条源头已下架」 plus unavailable/missingSince/badge; restoring the ID self-healed to 50/50 available and cleared the badge; X/Bilibili/YouTube latest refreshes returned failedCount=0.
-- Known failures: none. One GitHub HTTPS fetch hit a transient `HTTP2 framing layer` error; retry succeeded, and §9 now records the HTTP/1.1 one-command fallback.
-- Next recommended task: Push `main` after user confirmation. After that: Phase 4 (backup script + JSON export) per roadmap.
-- Summary: Phase 3b — availability becomes fact for YouTube with deterministic evidence only; the archive keeps unavailable items and labels them honestly.
+- Updated by: Claude 20x Web Architect (Claude Code cloud sandbox, branch `claude/amazing-ride-oa1jss`)
+- Date: 2026-06-12 (UTC sandbox time)
+- Current status: Phase 4 (backup + export) implemented on the branch; awaiting Codex local verification and merge. No schema changes.
+- What changed: `npm run backup` — hot SQLite snapshot via `VACUUM INTO` on a read-only connection (physically cannot mutate the source; safe with dev running), written to `data/backups/sourcelens-<ts>.db`, then integrity_check + five-table row-count comparison; never auto-deletes old backups; prints restore instructions. `npm run export` — read-only JSON export of Room/RoomType/SourceBinding/Item to `data/exports/`; AuthProfile excluded entirely (profileDir is machine-local, proxyUrl may embed credentials); a sensitive-key tripwire scans the bindings section only (not items.raw, which is user content and may legitimately contain such substrings). Scripts are `.mts` run via `--env-file=.env` (code never reads `.env` itself); DB path resolution mirrors Prisma file:-URL semantics via pure `resolveSqliteUrl` (tested). `data/backups/` added to `.gitignore`; storage.ts manages the new dir.
+- Sandbox rehearsal: backup integrity=ok with row counts matching across Room/RoomType/SourceBinding/Item/AuthProfile; export counts correct with schema fingerprint = latest migration name; exported JSON contains no profileDir/proxyUrl/proxyMode.
+- Tests run (sandbox): `npm test` 186/186; `npm run build` passed. Pending Codex: hot backup on the real DB with dev running, export sensitive-key grep, gitignore check.
+- Known failures: none in sandbox.
+- Next recommended task: Codex verifies and merges to `main`. Afterwards per roadmap: Phase 5 remote fetch worker design review (noAuth/apiKey foreign sources only), or accumulated small items if preferred.
+- Summary: Phase 4 — one-command hot backup with verification and a credentials-free archive export; the 3a manual backup procedure is now codified.

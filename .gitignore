@@ -30,6 +30,7 @@ tsconfig.tsbuildinfo
 data/db/
 data/browser-profiles/
 data/exports/
+data/backups/
 data/cache/
 *.db
 *.db-journal
