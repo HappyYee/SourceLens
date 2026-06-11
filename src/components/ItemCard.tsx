@@ -8,9 +8,8 @@ import {
   platformLabel,
 } from "./icons";
 import { CardMedia } from "./cards/CardMedia";
-import { LinkPreview } from "./cards/LinkPreview";
-import { MediaGrid } from "./cards/MediaGrid";
 import { TagList } from "./cards/TagList";
+import { XPostCard } from "./cards/XPostCard";
 
 const LINK_LABEL: Record<Platform, string> = {
   youtube: "在 YouTube 查看",
@@ -58,10 +57,6 @@ export default function ItemCard({
   const aiTitled = it.platform === "x" && !it.title && !!it.aiTitle;
   const srcLabel = srcLabelFor(it);
   const tags = [...(it.youtubePlaylistTags ?? []), ...(it.platformTags ?? [])];
-  const photos = (it.media ?? []).filter((m) => m.thumb);
-  const links = it.linkCards ?? [];
-  const isXQuoteWithoutQuoteCard =
-    it.platform === "x" && it.postKind === "quote" && !links.some((c) => c.domain === "x.com");
 
   return (
     <div className="item">
@@ -93,17 +88,7 @@ export default function ItemCard({
         </div>
         {it.excerpt ? <div className="it-desc">{it.excerpt}</div> : null}
 
-        {it.platform === "x" && photos.length > 0 && it.postKind !== "video" ? (
-          <MediaGrid photos={photos} />
-        ) : null}
-
-        {it.platform === "x" && links.length > 0 ? (
-          <LinkPreview links={links} />
-        ) : null}
-
-        {isXQuoteWithoutQuoteCard ? (
-          <div className="it-quote-fallback">引用了一条推文</div>
-        ) : null}
+        {it.platform === "x" ? <XPostCard it={it} /> : null}
 
         {tags.length > 0 ? (
           <TagList tags={tags} />

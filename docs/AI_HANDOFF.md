@@ -107,7 +107,7 @@ Status: latest refresh is routed through thin platform adapters.
 
 ## 6. Current Next Task
 
-Recommended next task: Phase 2 Task F2, migrate the X content area into `XPostCard` after the user provides the F2 prompt.
+Recommended next task: Phase 2 Task F3, turn `ItemCard` into a shell plus per-platform card registry dispatch after the user provides the F3 prompt.
 
 Follow-up direction:
 
@@ -116,9 +116,10 @@ Follow-up direction:
 - Fetchability is derived from the registry.
 - `src/lib/report.ts` now provides shared error-code classification and a future `FetchReport` envelope; legacy result types remain in place until the Phase 2 UI ResultLine window.
 - Phase 2 F1 extracted shared card atoms (`CardMedia`, `MediaGrid`, `LinkPreview`, `TagList`) and pure helpers without changing card rendering conditions.
+- Phase 2 F2 moved X content blocks (`MediaGrid`, `LinkPreview`, quote fallback) into `XPostCard`; `ItemCard` now mounts the X content area as a single branch.
 - Preserve the working Phase 0 behavior for YouTube, Bilibili, and X.
 - Carry `truncate()` or its successor into the future `NormalizedItem` validation boundary before DB writes.
-- Continue Phase 2 with XPostCard, VideoCard, ItemCard shell/registry, then ResultLine + capabilities-to-UI.
+- Continue Phase 2 with ItemCard shell/registry, then ResultLine + capabilities-to-UI.
 - Do not start schema migrations unless the user explicitly provides a migration prompt.
 - Consider an X Debug Panel later for deeper observability, but it is not required for this fix.
 
@@ -250,11 +251,11 @@ Web AI collaborators working read-only should not update this file unless the us
 ## 12. Last Updated
 
 - Updated by: Codex Local
-- Date: 2026-06-11 04:55:28 CST
-- Current status: Repository is on private GitHub `main`; Phase 2 Task F1 is implemented locally and awaiting user approval to push. Phase 1 was pushed and is closed. ItemCard shared rendering atoms are extracted while legacy card output, CSS, data/API code, schema, and platform logic remain unchanged.
-- What changed: Added `src/components/cards/shared.ts`, `CardMedia.tsx`, `MediaGrid.tsx`, `LinkPreview.tsx`, and `TagList.tsx`; moved `thumbClass`, `sqClass`, and `hideBrokenImage` into the shared helper; rewired `ItemCard.tsx` to compose the new atoms while keeping X media/link/tag outer conditions in `ItemCard`; added `tests/cards.test.ts`. `globals.css`, `src/lib/**`, API routes, and schema were not modified.
-- Tests run: `node --test --experimental-strip-types --experimental-sqlite tests/cards.test.ts` passed with 2/2 tests; `npm test` passed with 158/158 tests; `npm run build` passed.
-- Verification results: Browser check on the X Room covered text/quote/video/link states after loading older items: `thumb=11`, `play=11`, `linkCards=2`, `quoteFallback=76`, `brokenImages=0`, no console errors/warnings. YouTube backfill view showed `50` video cards with `50` play overlays and `50` duration badges; Bilibili backfill view showed `50` video cards with `referrerPolicy=no-referrer` on thumbnails, `50` play overlays, and `brokenImages=0`; no console errors/warnings. A temporary real RSS + podcast verification Room produced RSS `sq s1` and podcast `sq s2` square cards with no broken images or console errors, then was deleted.
+- Date: 2026-06-11 12:07:19 CST
+- Current status: Repository is on private GitHub `main`; Phase 2 Task F2 is implemented locally and awaiting user approval to push. F1 was pushed. `ItemCard` no longer contains X media/link/quote fallback details; it mounts `<XPostCard it={it} />` for the X content area. CSS, data/API code, schema, and platform logic remain unchanged.
+- What changed: Added `src/components/cards/XPostCard.tsx`; moved X photos/links/quote-fallback calculations and rendering into that component; replaced the three X content blocks in `ItemCard.tsx` with a single guarded `<XPostCard it={it} />`. No `globals.css`, `src/lib/**`, API route, or schema files were modified.
+- Tests run: `npm test` passed with 158/158 tests; `npm run build` passed.
+- Verification results: Browser check on the X Room after loading older items covered text/quote/video/link states: `thumb=11`, `play=11`, `linkCards=2`, `quoteFallback=76`, `brokenImages=0`, no console errors/warnings. The local database currently has no X image-post sample, so the image grid branch was not live-visual-verified this round; the migrated condition is unchanged and `ItemCard` grep confirms it no longer references `it.media`, `it.linkCards`, or `it-quote-fallback`. YouTube and Bilibili backfill views remained unchanged (`50` video cards each, Bilibili thumbnails still `referrerPolicy=no-referrer`, no broken images); a temporary real RSS + podcast verification Room produced RSS `sq s1` and podcast `sq s2` square cards, then was deleted.
 - Known failures: No active Phase 0 P0 blocker observed. Existing X Items outside the verified `@elonmusk` backfill window may still need a future refresh/backfill to receive newer quote-card normalization. X latest can still have occasional transient SPA/network failures that pass on retry; record `binding.lastError` and `errorCode` in this file whenever it recurs.
-- Next recommended task: Wait for the user's Phase 2 Task F2 prompt, expected to migrate X-specific content rendering into `XPostCard`.
-- Summary: Phase 2 has started with a no-visual-change extraction of shared card atoms; ItemCard still owns platform-specific conditions and remains the card shell for now.
+- Next recommended task: Wait for the user's Phase 2 Task F3 prompt, expected to introduce the ItemCard shell + card registry dispatch.
+- Summary: Phase 2 F2 keeps rendering behavior stable while shrinking `ItemCard`'s X-specific content knowledge to one guarded component mount.
