@@ -270,12 +270,12 @@ Web AI collaborators working read-only should not update this file unless the us
 
 ## 12. Last Updated
 
-- Updated by: Claude 20x Web Architect (Claude Code cloud sandbox, branch `claude/amazing-ride-oa1jss`)
-- Date: 2026-06-12 (UTC sandbox time)
-- Current status: Phase 4 (backup + export) implemented on the branch; awaiting Codex local verification and merge. No schema changes.
+- Updated by: Codex Local Executor
+- Date: 2026-06-12 (Asia/Shanghai)
+- Current status: Phase 4 (backup + export) is locally verified and fast-forward merged into `main`; awaiting user-confirmed push. No schema changes.
 - What changed: `npm run backup` — hot SQLite snapshot via `VACUUM INTO` on a read-only connection (physically cannot mutate the source; safe with dev running), written to `data/backups/sourcelens-<ts>.db`, then integrity_check + five-table row-count comparison; never auto-deletes old backups; prints restore instructions. `npm run export` — read-only JSON export of Room/RoomType/SourceBinding/Item to `data/exports/`; AuthProfile excluded entirely (profileDir is machine-local, proxyUrl may embed credentials); a sensitive-key tripwire scans the bindings section only (not items.raw, which is user content and may legitimately contain such substrings). Scripts are `.mts` run via `--env-file=.env` (code never reads `.env` itself); DB path resolution mirrors Prisma file:-URL semantics via pure `resolveSqliteUrl` (tested). `data/backups/` added to `.gitignore`; storage.ts manages the new dir.
-- Sandbox rehearsal: backup integrity=ok with row counts matching across Room/RoomType/SourceBinding/Item/AuthProfile; export counts correct with schema fingerprint = latest migration name; exported JSON contains no profileDir/proxyUrl/proxyMode.
-- Tests run (sandbox): `npm test` 186/186; `npm run build` passed. Pending Codex: hot backup on the real DB with dev running, export sensitive-key grep, gitignore check.
-- Known failures: none in sandbox.
-- Next recommended task: Codex verifies and merges to `main`. Afterwards per roadmap: Phase 5 remote fetch worker design review (noAuth/apiKey foreign sources only), or accumulated small items if preferred.
+- Local verification: with dev server running, `npm run backup` produced `integrity=ok` and matching row counts (`Room=19`, `RoomType=8`, `SourceBinding=10`, `Item=545`, `AuthProfile=2`); restore guidance pointed at the real local DB path. `npm run export` produced a JSON export with `rooms=19`, `roomTypes=8`, `bindings=10`, `items=545`, `schema=20260611150142_phase3a_item_status_auth_profile_video_kind`; grep for `profileDir|proxyUrl|proxyMode` returned 0. `data/backups/` and `data/exports/` products stayed ignored by git. Snapshot read-only restore probe matched live `Item=545` and `integrity=ok`.
+- Tests run: `npx prisma generate`; `npm test` 186/186; `npm run build` passed.
+- Known failures: none.
+- Next recommended task: Push `main` after user confirmation. Afterwards per roadmap: Phase 5 remote fetch worker design review (noAuth/apiKey foreign sources only), or accumulated small items if preferred.
 - Summary: Phase 4 — one-command hot backup with verification and a credentials-free archive export; the 3a manual backup procedure is now codified.
