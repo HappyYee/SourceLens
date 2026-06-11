@@ -6,8 +6,8 @@ import {
   resolveRefreshNetwork,
   networkHint,
   formatOutcome,
-  type RefreshOutcome,
 } from "../src/lib/network.ts";
+import type { FetchReport } from "../src/lib/report.ts";
 
 // —— 区域自动判定 ——
 
@@ -95,7 +95,7 @@ test("proxyMode=none：即使国外也不走代理", () => {
 // —— 结果文案 ——
 
 test("formatOutcome：ok=true 成功（带计数）", () => {
-  const o: RefreshOutcome = {
+  const o: FetchReport = {
     ok: true,
     action: "backfill",
     platform: "youtube",
@@ -103,7 +103,7 @@ test("formatOutcome：ok=true 成功（带计数）", () => {
     networkLabel: "国外刷新",
     createdCount: 15,
     updatedCount: 0,
-    scannedCount: 15,
+    rawCount: 15,
   };
   const s = formatOutcome(o);
   assert.match(s, /国外刷新成功/);
@@ -112,7 +112,7 @@ test("formatOutcome：ok=true 成功（带计数）", () => {
 });
 
 test("formatOutcome：ok=true 但零计数 → 没有新内容", () => {
-  const o: RefreshOutcome = {
+  const o: FetchReport = {
     ok: true,
     action: "refresh_latest",
     platform: "bilibili",
@@ -120,13 +120,13 @@ test("formatOutcome：ok=true 但零计数 → 没有新内容", () => {
     networkLabel: "国内刷新",
     createdCount: 0,
     updatedCount: 0,
-    scannedCount: 0,
+    rawCount: 0,
   };
   assert.equal(formatOutcome(o), "国内刷新成功：没有新内容");
 });
 
 test("formatOutcome：check_auth 已登录", () => {
-  const o: RefreshOutcome = {
+  const o: FetchReport = {
     ok: true,
     action: "check_auth",
     platform: "x",
@@ -137,13 +137,13 @@ test("formatOutcome：check_auth 已登录", () => {
 });
 
 test("formatOutcome：ok=false 失败带 error + hint", () => {
-  const o: RefreshOutcome = {
+  const o: FetchReport = {
     ok: false,
     action: "backfill",
     platform: "youtube",
     refreshRegion: "foreign",
     networkLabel: "国外刷新",
-    error: "fetch failed: timeout",
+    errorMessage: "fetch failed: timeout",
     hint: networkHint("foreign", "fetch failed: timeout"),
   };
   const s = formatOutcome(o);

@@ -33,7 +33,7 @@ export default function SourceItem({
     try {
       const res = await fetch(`/api/bindings/${source.id}/refresh`, { method: "POST" });
       const j = await res.json().catch(() => ({}));
-      setMsg(formatRefreshLatestResult(res.ok && !j.error, j));
+      setMsg(formatRefreshLatestResult(res.ok && !j.errorMessage, j));
       onChanged();
     } catch {
       setMsg("网络错误");
@@ -53,7 +53,7 @@ export default function SourceItem({
         body: JSON.stringify({ limit }),
       });
       const j = await res.json().catch(() => ({}));
-      setMsg(formatBackfillResult(res.ok && !j.error, j));
+      setMsg(formatBackfillResult(res.ok && !j.errorMessage, j));
       onChanged();
     } catch {
       setMsg("网络错误");
@@ -70,7 +70,7 @@ export default function SourceItem({
         method: "POST",
       });
       const j = await res.json().catch(() => ({}));
-      setMsg(formatSyncTagsResult(res.ok && !j.error, j));
+      setMsg(formatSyncTagsResult(res.ok && !j.errorMessage, j));
       onChanged();
     } catch {
       setMsg("网络错误");

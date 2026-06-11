@@ -3,7 +3,7 @@
 // 显式 .ts 后缀：让本模块在 node --test（原生 ESM）下也能直接 import 运行。
 import { pickProxyUrl } from "./proxy-url.ts";
 import { NETWORK_ERR } from "./report.ts";
-import type { ErrorCode } from "./report.ts";
+import type { FetchReport } from "./report.ts";
 
 export type RefreshRegion = "domestic" | "foreign" | "auto";
 export type ProxyMode = "none" | "system" | "manual";
@@ -65,21 +65,6 @@ export function resolveRefreshNetwork(opts: {
 
 export type RefreshAction = "check_auth" | "refresh_latest" | "backfill" | "sync_tags";
 
-export interface RefreshOutcome {
-  ok: boolean;
-  action: RefreshAction;
-  platform: string;
-  refreshRegion: RefreshRegion;
-  networkLabel: "国内刷新" | "国外刷新";
-  createdCount?: number;
-  updatedCount?: number;
-  skippedCount?: number;
-  scannedCount?: number;
-  error?: string;
-  errorCode?: ErrorCode;
-  hint?: string;
-}
-
 /** 由区域 + 错误信息生成网络相关提示（仅网络类错误才提示）。 */
 export function networkHint(
   region: "domestic" | "foreign",
@@ -92,20 +77,20 @@ export function networkHint(
 }
 
 /** 行内展示文案（成功 / 失败）。 */
-export function formatOutcome(o: RefreshOutcome): string {
+export function formatOutcome(o: FetchReport): string {
   if (o.action === "check_auth") {
     return o.ok
       ? `${o.networkLabel} · 已登录`
-      : `${o.networkLabel} · ${o.error || "未确认登录"}${o.hint ? `。${o.hint}` : ""}`;
+      : `${o.networkLabel} · ${o.errorMessage || "未确认登录"}${o.hint ? `。${o.hint}` : ""}`;
   }
   if (!o.ok) {
-    return `${o.networkLabel}失败：${o.error || "未知错误"}${o.hint ? `。${o.hint}` : ""}`;
+    return `${o.networkLabel}失败：${o.errorMessage || "未知错误"}${o.hint ? `。${o.hint}` : ""}`;
   }
   const hasCounts =
-    o.createdCount != null || o.updatedCount != null || o.scannedCount != null;
+    o.createdCount != null || o.updatedCount != null || o.rawCount != null;
   const created = o.createdCount ?? 0;
   const updated = o.updatedCount ?? 0;
-  const scanned = o.scannedCount ?? 0;
+  const scanned = o.rawCount ?? 0;
   if (hasCounts && created === 0 && updated === 0 && scanned === 0) {
     return `${o.networkLabel}成功：没有新内容`;
   }
@@ -113,6 +98,6 @@ export function formatOutcome(o: RefreshOutcome): string {
   if (o.createdCount != null) parts.push(`+${created} 新`);
   if (o.updatedCount != null) parts.push(`${updated} 更`);
   if (o.skippedCount) parts.push(`跳过 ${o.skippedCount}`);
-  if (o.scannedCount != null) parts.push(`已扫描 ${scanned}`);
+  if (o.rawCount != null) parts.push(`已扫描 ${scanned}`);
   return parts.length ? `${o.networkLabel}成功：${parts.join(" · ")}` : `${o.networkLabel}成功`;
 }

@@ -52,6 +52,7 @@ export interface FetchReport {
   platform: string;
   action: RefreshAction;
   networkLabel?: string;
+  refreshRegion?: string;
   stage?: string;
   executor?: string;
   rawCount?: number;
@@ -61,11 +62,17 @@ export interface FetchReport {
   failedCount?: number;
   pageCount?: number;
   hasMore?: boolean;
+  // 平台展示计数（Phase 3 字段收敛时再评估归并）。
+  shortsCount?: number;
+  taggedCount?: number;
+  playlistCount?: number;
   errorCode?: ErrorCode;
   errorMessage?: string;
   hint?: string;
 }
 
-// FetchReport is the future platform-level envelope. In this phase it only
-// establishes the type contract and carries optional errorCode values; removing
-// legacy result types and merging UI ResultLine behavior belongs to Phase 2.
+// FetchReport 是平台层唯一的结果信封（F4b 起取代 RefreshResult / BackfillCounts /
+// PlaylistSyncResult / RefreshOutcome）。字段映射约定：legacy added/updated →
+// createdCount/updatedCount；error → errorMessage；fetchedCount/scannedCount →
+// rawCount；BackfillCounts.playlistTaggedCount 与 PlaylistSyncResult.taggedCount
+// 统一为 taggedCount。

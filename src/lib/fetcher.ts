@@ -11,7 +11,7 @@ import { inWindow } from "./view";
 import { assertDataDir } from "./storage";
 import { truncate } from "./text.ts";
 import { fetchablePlatforms, getAdapter } from "./platform/registry.ts";
-import { classifyError, type ErrorCode } from "./report.ts";
+import { classifyError, type ErrorCode, type FetchReport } from "./report.ts";
 import {
   formatOutcome,
   networkHint,
@@ -103,17 +103,8 @@ export interface RefreshWindow {
   deep?: boolean; // 是否向更早翻页（arxiv 多页）
 }
 
-export interface RefreshResult {
-  bindingId: string;
-  platform: string;
-  added: number;
-  updated: number;
-  failedCount?: number;
-  error?: string;
-  errorCode?: ErrorCode;
-  networkLabel?: string;
-  hint?: string;
-}
+/** 单 binding 刷新结果：统一信封 + 定位用的 bindingId。 */
+export type BindingFetchReport = FetchReport & { bindingId: string };
 
 type BindingRow = {
   id: string;
@@ -257,11 +248,30 @@ async function upsertItems(
 export async function refreshBinding(
   bindingId: string,
   window?: RefreshWindow,
-): Promise<RefreshResult> {
+): Promise<BindingFetchReport> {
   const binding = await prisma.sourceBinding.findUnique({ where: { id: bindingId } });
-  if (!binding) return { bindingId, platform: "?", added: 0, updated: 0, error: "binding 不存在" };
+  if (!binding) {
+    const msg = "binding 不存在";
+    return {
+      bindingId,
+      platform: "?",
+      action: "refresh_latest",
+      ok: false,
+      createdCount: 0,
+      updatedCount: 0,
+      errorMessage: msg,
+      errorCode: classifyError(msg),
+    };
+  }
   if (!binding.enabled || !fetchablePlatforms().has(binding.platform)) {
-    return { bindingId, platform: binding.platform, added: 0, updated: 0 };
+    return {
+      bindingId,
+      platform: binding.platform,
+      action: "refresh_latest",
+      ok: true,
+      createdCount: 0,
+      updatedCount: 0,
+    };
   }
 
   const ctx = await authCtxFor(binding.platform);
@@ -285,8 +295,10 @@ export async function refreshBinding(
     return {
       bindingId,
       platform: binding.platform,
-      added,
-      updated,
+      action: "refresh_latest",
+      ok: true,
+      createdCount: added,
+      updatedCount: updated,
       failedCount: failed || undefined,
       networkLabel: net.humanLabel,
     };
@@ -300,9 +312,11 @@ export async function refreshBinding(
     return {
       bindingId,
       platform: binding.platform,
-      added: 0,
-      updated: 0,
-      error: msg,
+      action: "refresh_latest",
+      ok: false,
+      createdCount: 0,
+      updatedCount: 0,
+      errorMessage: msg,
       errorCode,
       networkLabel: net.humanLabel,
       hint: networkHint(net.region, msg),
@@ -317,7 +331,7 @@ export async function refreshDue(opts?: {
   until?: Date;
   deep?: boolean;
   force?: boolean;
-}): Promise<{ bindings: number; added: number; updated: number; results: RefreshResult[] }> {
+}): Promise<{ bindings: number; added: number; updated: number; results: BindingFetchReport[] }> {
   assertDataDir(); // 外置盘未挂载则在此硬失败，绝不静默写错位置
   const bindings = await prisma.sourceBinding.findMany({
     where: { enabled: true, ...(opts?.roomId ? { roomId: opts.roomId } : {}) },
@@ -328,7 +342,7 @@ export async function refreshDue(opts?: {
     until: opts?.until,
     deep: opts?.deep,
   };
-  const results: RefreshResult[] = [];
+  const results: BindingFetchReport[] = [];
   let added = 0;
   let updated = 0;
 
@@ -341,55 +355,52 @@ export async function refreshDue(opts?: {
     if (!due) continue;
     const r = await refreshBinding(b.id, window);
     results.push(r);
-    added += r.added;
-    updated += r.updated;
+    added += r.createdCount ?? 0;
+    updated += r.updatedCount ?? 0;
   }
+  // 聚合层对外键名（bindings/added/updated）保持不变：RefreshButton 依赖。
   return { bindings: results.length, added, updated, results };
 }
 
-export interface BackfillCounts {
-  createdCount: number;
-  updatedCount: number;
-  failedCount?: number;
-  skippedCount: number;
-  fetchedCount: number;
-  pageCount: number;
-  hasMore: boolean;
-  shortsCount: number;
-  playlistTaggedCount: number;
-  error?: string;
-  errorCode?: ErrorCode;
-  networkLabel?: string;
-  hint?: string;
+/** 回溯的零值信封（早退/失败路径用）：计数全 0，ok=false，由 over 补充细节。 */
+function zeroBackfillReport(over: Partial<FetchReport>): FetchReport {
+  return {
+    ok: false,
+    platform: "?",
+    action: "backfill",
+    createdCount: 0,
+    updatedCount: 0,
+    skippedCount: 0,
+    rawCount: 0,
+    pageCount: 0,
+    hasMore: false,
+    shortsCount: 0,
+    taggedCount: 0,
+    ...over,
+  };
 }
-
-const ZERO_BACKFILL: BackfillCounts = {
-  createdCount: 0,
-  updatedCount: 0,
-  skippedCount: 0,
-  fetchedCount: 0,
-  pageCount: 0,
-  hasMore: false,
-  shortsCount: 0,
-  playlistTaggedCount: 0,
-};
 
 /** 历史回溯：YouTube（uploads 分页）/ Bilibili（arc/search 分页）/ X（滚动）。同 refresh 的去重/保留语义。 */
 export async function backfillBinding(
   bindingId: string,
   limit: number | string,
-): Promise<BackfillCounts> {
+): Promise<FetchReport> {
   assertDataDir();
   const binding = await prisma.sourceBinding.findUnique({ where: { id: bindingId } });
-  if (!binding) return { ...ZERO_BACKFILL, error: "binding 不存在" };
+  if (!binding) {
+    const msg = "binding 不存在";
+    return zeroBackfillReport({ errorMessage: msg, errorCode: classifyError(msg) });
+  }
   const platform = binding.platform;
   const backfillAdapter = getAdapter(platform);
   if (!backfillAdapter?.backfill) {
-    return { ...ZERO_BACKFILL, error: "回溯历史目前支持 YouTube / Bilibili / X source" };
+    const msg = "回溯历史目前支持 YouTube / Bilibili / X source";
+    return zeroBackfillReport({ platform, errorMessage: msg, errorCode: classifyError(msg) });
   }
   const sourceInput = binding.feedUrl?.trim() || "";
   if (!sourceInput) {
-    return { ...ZERO_BACKFILL, error: "该 source 缺少频道 / UP 主 / 用户标识" };
+    const msg = "该 source 缺少频道 / UP 主 / 用户标识";
+    return zeroBackfillReport({ platform, errorMessage: msg, errorCode: classifyError(msg) });
   }
 
   const ctx = await authCtxFor(platform);
@@ -414,15 +425,18 @@ export async function backfillBinding(
         },
       });
       return {
+        ok: true,
+        platform,
+        action: "backfill",
         createdCount: added,
         updatedCount: updated,
         failedCount: failed || undefined,
         skippedCount: 0,
-        fetchedCount: out.rawCount ?? 0,
+        rawCount: out.rawCount ?? 0,
         pageCount: out.pageCount ?? 0,
         hasMore: out.hasMore ?? false,
         shortsCount,
-        playlistTaggedCount: 0,
+        taggedCount: 0,
         networkLabel: net.humanLabel,
       };
     }
@@ -448,15 +462,18 @@ export async function backfillBinding(
         await markAuthProfileLoggedIn(platform, ctx.authProfileId, ctx);
       }
       return {
+        ok: true,
+        platform,
+        action: "backfill",
         createdCount: added,
         updatedCount: updated,
         failedCount: failed || undefined,
         skippedCount: 0,
-        fetchedCount: out.rawCount ?? 0,
+        rawCount: out.rawCount ?? 0,
         pageCount: out.pageCount ?? 0,
         hasMore: out.hasMore ?? false,
         shortsCount: 0,
-        playlistTaggedCount: 0,
+        taggedCount: 0,
         networkLabel: net.humanLabel,
       };
     }
@@ -482,7 +499,7 @@ export async function backfillBinding(
     let playlistTaggedCount = 0;
     try {
       const sync = await syncPlaylistTagsForBinding(binding.id);
-      playlistTaggedCount = sync.taggedCount;
+      playlistTaggedCount = sync.taggedCount ?? 0;
     } catch {
       // 标签同步失败不影响 backfill 主结果
     }
@@ -494,15 +511,18 @@ export async function backfillBinding(
       });
     }
     return {
+      ok: true,
+      platform,
+      action: "backfill",
       createdCount: added,
       updatedCount: updated,
       failedCount: failed || undefined,
       skippedCount,
-      fetchedCount: out.rawCount ?? 0,
+      rawCount: out.rawCount ?? 0,
       pageCount: out.pageCount ?? 0,
       hasMore: out.hasMore ?? false,
       shortsCount,
-      playlistTaggedCount,
+      taggedCount: playlistTaggedCount,
       networkLabel: net.humanLabel,
     };
   } catch (e) {
@@ -512,23 +532,26 @@ export async function backfillBinding(
       where: { id: binding.id },
       data: { lastError: truncate(msg, 300) },
     });
-    return {
-      ...ZERO_BACKFILL,
-      error: msg,
+    return zeroBackfillReport({
+      platform,
+      errorMessage: msg,
       errorCode,
       networkLabel: net.humanLabel,
       hint: networkHint(net.region, msg),
-    };
+    });
   }
 }
 
-export interface PlaylistSyncResult {
-  taggedCount: number;
-  playlistCount: number;
-  error?: string;
-  errorCode?: ErrorCode;
-  networkLabel?: string;
-  hint?: string;
+/** 标签同步的零值信封（早退/失败路径用）。 */
+function zeroSyncTagsReport(over: Partial<FetchReport>): FetchReport {
+  return {
+    ok: false,
+    platform: "youtube",
+    action: "sync_tags",
+    taggedCount: 0,
+    playlistCount: 0,
+    ...over,
+  };
 }
 
 /**
@@ -538,15 +561,24 @@ export interface PlaylistSyncResult {
  */
 export async function syncPlaylistTagsForBinding(
   bindingId: string,
-): Promise<PlaylistSyncResult> {
+): Promise<FetchReport> {
   const binding = await prisma.sourceBinding.findUnique({ where: { id: bindingId } });
-  if (!binding) return { taggedCount: 0, playlistCount: 0, error: "binding 不存在" };
+  if (!binding) {
+    const msg = "binding 不存在";
+    return zeroSyncTagsReport({ platform: "?", errorMessage: msg, errorCode: classifyError(msg) });
+  }
   if (binding.platform !== "youtube") {
-    return { taggedCount: 0, playlistCount: 0, error: "同步播放列表标签仅支持 YouTube source" };
+    const msg = "同步播放列表标签仅支持 YouTube source";
+    return zeroSyncTagsReport({
+      platform: binding.platform,
+      errorMessage: msg,
+      errorCode: classifyError(msg),
+    });
   }
   const sourceInput = binding.feedUrl?.trim() || "";
   if (!sourceInput) {
-    return { taggedCount: 0, playlistCount: 0, error: "该 source 缺少频道 ID / @handle / 链接" };
+    const msg = "该 source 缺少频道 ID / @handle / 链接";
+    return zeroSyncTagsReport({ errorMessage: msg, errorCode: classifyError(msg) });
   }
 
   const net = resolveRefreshNetwork({ platform: binding.platform });
@@ -579,7 +611,14 @@ export async function syncPlaylistTagsForBinding(
       where: { id: binding.id },
       data: { lastError: null },
     });
-    return { taggedCount, playlistCount, networkLabel: net.humanLabel };
+    return {
+      ok: true,
+      platform: "youtube",
+      action: "sync_tags",
+      taggedCount,
+      playlistCount,
+      networkLabel: net.humanLabel,
+    };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const errorCode = errorCodeFor(e, msg);
@@ -587,13 +626,11 @@ export async function syncPlaylistTagsForBinding(
       where: { id: binding.id },
       data: { lastError: truncate(msg, 300) },
     });
-    return {
-      taggedCount: 0,
-      playlistCount: 0,
-      error: msg,
+    return zeroSyncTagsReport({
+      errorMessage: msg,
       errorCode,
       networkLabel: net.humanLabel,
       hint: networkHint(net.region, msg),
-    };
+    });
   }
 }

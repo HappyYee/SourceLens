@@ -10,5 +10,5 @@ export async function POST(
   { params }: { params: { id: string } },
 ) {
   const res = await syncPlaylistTagsForBinding(params.id);
-  return NextResponse.json(res, { status: res.error ? 500 : 200 });
+  return NextResponse.json(res, { status: res.ok ? 200 : 500 });
 }

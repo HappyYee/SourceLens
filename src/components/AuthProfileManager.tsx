@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { formatOutcome, type RefreshOutcome } from "@/lib/network";
+import { formatOutcome } from "@/lib/network";
+import type { FetchReport } from "@/lib/report";
 
 export interface AuthProfileVM {
   id: string;
@@ -82,8 +83,7 @@ export default function AuthProfileManager({
     setMsg((m) => ({ ...m, [id]: "正在检查登录状态…" }));
     try {
       const res = await fetch(`/api/auth-profiles/${id}/check`, { method: "POST" });
-      const o = (await res.json().catch(() => ({}))) as RefreshOutcome & {
-        error?: string;
+      const o = (await res.json().catch(() => ({}))) as FetchReport & {
         debug?: {
           checkedUrl?: string;
           httpStatus?: number;
@@ -92,7 +92,7 @@ export default function AuthProfileManager({
           timedOut?: boolean;
         };
       };
-      const baseText = o.networkLabel ? formatOutcome(o) : o.error || "检查失败";
+      const baseText = o.networkLabel ? formatOutcome(o) : o.errorMessage || "检查失败";
       const d = o.debug;
       const extra = d
         ? `　[检查 ${d.checkedUrl ?? ""}${d.httpStatus != null ? ` · HTTP ${d.httpStatus}` : ""}` +

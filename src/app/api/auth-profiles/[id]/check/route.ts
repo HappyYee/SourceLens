@@ -3,13 +3,12 @@ import { prisma } from "@/lib/db";
 import { isSafeProfileDir } from "@/lib/authprofile";
 import { BrowserError, checkLoginStatus } from "@/lib/browser";
 import { checkBilibiliLogin, type BiliLoginDetail } from "@/lib/connectors/bilibili-net";
-import { classifyError, type ErrorCode } from "@/lib/report";
+import { classifyError, type ErrorCode, type FetchReport } from "@/lib/report";
 import {
   formatOutcome,
   networkHint,
   resolveRefreshNetwork,
   type ProxyMode,
-  type RefreshOutcome,
   type RefreshRegion,
 } from "@/lib/network";
 
@@ -39,7 +38,7 @@ export async function POST(
   };
 
   if (!isSafeProfileDir(ap.profileDir)) {
-    const o: RefreshOutcome = { ...base, ok: false, error: "profileDir 不安全，已阻止" };
+    const o: FetchReport = { ...base, ok: false, errorMessage: "profileDir 不安全，已阻止" };
     await prisma.authProfile.update({
       where: { id: ap.id },
       data: { lastResult: formatOutcome(o), lastCheckedAt: new Date() },
@@ -80,10 +79,10 @@ export async function POST(
       : status === "needs_check" && debug?.profileBusy
         ? "profile_busy"
         : undefined;
-    const o: RefreshOutcome = {
+    const o: FetchReport = {
       ...base,
       ok,
-      error,
+      errorMessage: error,
       errorCode,
       hint: ok ? undefined : networkHint(net.region, error),
     };
@@ -95,10 +94,10 @@ export async function POST(
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
     const errorCode = classifyError(error, e instanceof BrowserError ? e.code : undefined);
-    const o: RefreshOutcome = {
+    const o: FetchReport = {
       ...base,
       ok: false,
-      error,
+      errorMessage: error,
       errorCode,
       hint: networkHint(net.region, error),
     };

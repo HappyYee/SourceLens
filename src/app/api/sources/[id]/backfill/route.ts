@@ -15,5 +15,5 @@ export async function POST(
     raw === "all" || raw === 50 || raw === 100 || raw === 300 ? raw : 100;
 
   const res = await backfillBinding(params.id, limit);
-  return NextResponse.json(res, { status: res.error ? 500 : 200 });
+  return NextResponse.json(res, { status: res.ok ? 200 : 500 });
 }
