@@ -254,11 +254,11 @@ Web AI collaborators working read-only should not update this file unless the us
 
 ## 12. Last Updated
 
-- Updated by: Claude 20x Web Architect (Claude Code cloud sandbox, branch `claude/amazing-ride-oa1jss`)
-- Date: 2026-06-11 (UTC sandbox time)
-- Current status: Phase 2 F4b is implemented on branch `claude/amazing-ride-oa1jss` and pushed; awaiting Codex local verification and merge into `main`. From this task onward, Claude writes the majority of code in its cloud sandbox and Codex acts as the local verifier/merger.
+- Updated by: Claude 20x Web Architect + Codex Local verifier
+- Date: 2026-06-11 22:03:53 CST
+- Current status: Phase 2 F4b is locally verified and fast-forward merged into `main`; awaiting user confirmation before pushing `main`. From this task onward, Claude writes the majority of code in its cloud sandbox and Codex acts as the local verifier/merger.
 - What changed: All three fetcher entry points now return the unified `FetchReport` envelope (`refreshBinding` returns `FetchReport & { bindingId }` as `BindingFetchReport`). Legacy types `RefreshResult` / `BackfillCounts` / `PlaylistSyncResult` / `RefreshOutcome` are deleted. `formatOutcome` consumes `FetchReport` (`errorMessage` / `rawCount`); `format-result.ts` formatter inputs renamed accordingly with output strings byte-identical; `SourceItem` ok-checks read `errorMessage`; `AuthProfileManager` and the auth check route use `FetchReport`; backfill / sync-playlist-tags routes derive HTTP status from `res.ok`. `/api/refresh` aggregate keys (`bindings`/`added`/`updated`) are unchanged for `RefreshButton`. `FetchReport` gained `refreshRegion` / `shortsCount` / `taggedCount` / `playlistCount` (platform display counts; revisit during Phase 3 field consolidation).
-- Tests run (sandbox): `npm test` passed 170/170; `npm run build` passed. Pending local verification by Codex: real refresh/backfill/sync result strings, check-auth flow incl. profile-busy, `npm run fetch`, and DB `lastResult` strings.
+- Tests run: Claude sandbox `npm test` passed 170/170 and `npm run build` passed; Codex local verification passed `npm test` 170/170, `npm run build`, real UI latest/backfill/sync/refresh-all result strings, X check-auth including profile-busy and post-refresh `lastResult=国外刷新 · 已登录`, invalid-input JSON `errorMessage + errorCode=input` with unchanged UI text, and `npm run fetch` on default port 3000.
 - Known failures: none in sandbox. Transient X/YouTube SPA/network failures may still occur on real refresh; record `binding.lastError` + `errorCode` here when they recur.
-- Next recommended task: Codex verifies branch `claude/amazing-ride-oa1jss`, merges to `main`, then Phase 2 closes. After that: Claude drafts the Phase 3 schema-migration review document (ItemStatus + `binding.authProfileId` + `youtubeKind`→`videoKind`) for user approval before any code.
+- Next recommended task: push verified `main` after user confirmation, then close Phase 2. After that: Claude drafts the Phase 3 schema-migration review document (ItemStatus + `binding.authProfileId` + `youtubeKind`→`videoKind`) for user approval before any code.
 - Summary: Phase 2 F4b — single result envelope across fetcher, routes, and UI with zero user-visible text changes.
