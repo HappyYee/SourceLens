@@ -164,3 +164,14 @@ test("effectiveVideoKind：videoKind 优先，回退 youtubeKind，都空为 nul
   assert.equal(effectiveVideoKind({ videoKind: null, youtubeKind: "short" }), "short");
   assert.equal(effectiveVideoKind({}), null);
 });
+
+// —— U1：紧凑相对时长 —— //
+import { agoLabel } from "../src/lib/view.ts";
+
+test("agoLabel：刚刚 / 分钟 / 小时 / 天 边界", () => {
+  const now = new Date("2026-06-12T12:00:00.000Z");
+  assert.equal(agoLabel(new Date("2026-06-12T11:59:30.000Z"), now), "刚刚");
+  assert.equal(agoLabel(new Date("2026-06-12T11:30:00.000Z"), now), "30 分钟前");
+  assert.equal(agoLabel(new Date("2026-06-12T09:00:00.000Z"), now), "3 小时前");
+  assert.equal(agoLabel(new Date("2026-06-04T12:00:00.000Z"), now), "8 天前");
+});

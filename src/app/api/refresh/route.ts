@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { refreshDue } from "@/lib/fetcher";
+import { parseScope, scopeWindow } from "@/lib/refresh-scope";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -11,28 +12,16 @@ export const maxDuration = 120;
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}) as Record<string, unknown>);
   const roomId = typeof body.roomId === "string" ? body.roomId : undefined;
-  const scope = typeof body.scope === "string" ? body.scope : undefined;
+  const scope = parseScope(body.scope);
+  const { since, until, deep } = scopeWindow(
+    scope,
+    new Date(),
+    typeof body.since === "string" ? body.since : undefined,
+    typeof body.until === "string" ? body.until : undefined,
+  );
 
-  let since: Date | undefined;
-  let until: Date | undefined;
-  let deep = false;
-
-  if (scope === "today") {
-    since = new Date();
-    since.setHours(0, 0, 0, 0);
-    until = new Date();
-  } else if (scope === "all") {
-    until = new Date();
-    deep = true;
-  } else if (scope === "range") {
-    since = body.since ? new Date(body.since as string) : undefined;
-    until = body.until ? new Date(body.until as string) : undefined;
-    deep = true;
-    if (since && Number.isNaN(+since)) since = undefined;
-    if (until && Number.isNaN(+until)) until = undefined;
-  }
-
-  // 手动选了 scope 一律强制（忽略 interval）；省略 scope 时尊重 body.force（cron 用）
+  // 手动选了 scope 一律强制（忽略 interval）；省略 scope 时尊重 body.force
+  // （检查更新按钮传 force=true；启动自动刷新传 force=false 走 interval 节流）
   const force = scope !== undefined || body.force === true;
 
   try {

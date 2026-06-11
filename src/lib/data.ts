@@ -198,3 +198,21 @@ export async function getAllRoomsFlat() {
     },
   });
 }
+
+/** 全局刷新状态：启用中 binding 的最近/最早 lastFetchedAt（"上次刷新 X 前"与离开提示用）。 */
+export async function getRefreshStatus(): Promise<{
+  enabledCount: number;
+  lastFetchedAt: Date | null;
+  oldestFetchedAt: Date | null;
+}> {
+  const rows = await prisma.sourceBinding.findMany({
+    where: { enabled: true },
+    select: { lastFetchedAt: true },
+  });
+  const ts = rows.map((r) => r.lastFetchedAt).filter((d): d is Date => d != null);
+  return {
+    enabledCount: rows.length,
+    lastFetchedAt: ts.length ? new Date(Math.max(...ts.map((d) => +d))) : null,
+    oldestFetchedAt: ts.length ? new Date(Math.min(...ts.map((d) => +d))) : null,
+  };
+}

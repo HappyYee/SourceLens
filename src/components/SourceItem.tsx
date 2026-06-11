@@ -8,6 +8,7 @@ import {
   formatSyncTagsResult,
 } from "@/lib/format-result";
 import { sourceActionFlags } from "@/lib/source-actions";
+import { agoLabel } from "@/lib/view";
 import type { Platform } from "@/lib/types";
 import { PlatformIcon, platformLabel } from "./icons";
 import type { SourceRow } from "./RoomSources";
@@ -127,6 +128,11 @@ export default function SourceItem({
       <span className="src-detail">
         {source.feedUrl || source.query || (isManual ? "手动粘贴" : "—")}
       </span>
+      {!isManual ? (
+        <span className="src-meta" suppressHydrationWarning>
+          {source.lastFetchedAt ? `上次刷新 ${agoLabel(source.lastFetchedAt, new Date())}` : "未刷新过"}
+        </span>
+      ) : null}
       {source.lastError ? (
         <span className="src-err" title={source.lastError}>
           ⚠ {source.lastError}

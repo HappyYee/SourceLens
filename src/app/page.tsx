@@ -1,9 +1,11 @@
 import Link from "next/link";
-import { getHomeRooms } from "@/lib/data";
+import { getHomeRooms, getRefreshStatus } from "@/lib/data";
 import type { RoomVM } from "@/lib/types";
 import { IconArrow, PlatformIcon } from "@/components/icons";
+import AutoRefresh from "@/components/AutoRefresh";
 import RefreshButton from "@/components/RefreshButton";
 import {
+  agoLabel,
   displayTitle,
   formatRelativeTime,
   impCells,
@@ -20,19 +22,40 @@ export default async function HomePage() {
   } catch {
     rooms = [];
   }
+  let lastFetchedAt: Date | null = null;
+  let oldestFetchedAt: Date | null = null;
+  try {
+    const st = await getRefreshStatus();
+    lastFetchedAt = st.lastFetchedAt;
+    oldestFetchedAt = st.oldestFetchedAt;
+  } catch {
+    /* 状态标签缺席不影响首页 */
+  }
+  const staleDays = oldestFetchedAt
+    ? Math.floor((now.getTime() - oldestFetchedAt.getTime()) / 86_400_000)
+    : 0;
 
   return (
     <>
       <div className="topbar">
         <div className="crumb">源镜 / 今日总览</div>
         <div className="spacer" />
+        <span className="topbar-meta" suppressHydrationWarning>
+          {lastFetchedAt ? `上次刷新 ${agoLabel(lastFetchedAt, now)}` : ""}
+          {staleDays > 7 ? (
+            <em className="topbar-warn" title="最久未刷新的源已超过 7 天。高产源的最新批次可能盖不住离开期间的全部内容，建议进入 Room 用「回溯历史」补齐。">
+              · 离开较久，建议回溯
+            </em>
+          ) : null}
+        </span>
+        <AutoRefresh />
         <div className="seg">
           <button type="button" className="on">
             重要性
           </button>
           <button type="button">最近更新</button>
         </div>
-        <RefreshButton label="刷新全部" />
+        <RefreshButton label="检查更新" />
       </div>
 
       <div className="content">

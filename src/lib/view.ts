@@ -140,3 +140,13 @@ export function effectiveVideoKind(it: {
 }): string | null {
   return it.videoKind ?? it.youtubeKind ?? null;
 }
+
+/** 紧凑相对时长（"上次刷新 X 前"用）：刚刚 / N 分钟前 / N 小时前 / N 天前。 */
+export function agoLabel(t: string | Date, now: Date): string {
+  const min = Math.floor((now.getTime() - new Date(t).getTime()) / 60_000);
+  if (min < 1) return "刚刚";
+  if (min < 60) return `${min} 分钟前`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} 小时前`;
+  return `${Math.floor(hr / 24)} 天前`;
+}

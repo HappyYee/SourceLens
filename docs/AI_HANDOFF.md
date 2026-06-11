@@ -229,8 +229,9 @@ Web AI collaborators working read-only should not update this file unless the us
 
 - Updated by: Claude 20x Web Architect (Claude Code cloud sandbox, branch `claude/amazing-ride-oa1jss`)
 - Date: 2026-06-12 (UTC sandbox time)
-- Current status: Docs-alignment pass after Phase 4. ARCHITECTURE.md rewritten to describe the current adapter/registry/FetchReport/archive-status/backup system; ROADMAP.md reset around the usage observation period; DECISIONS.md gained six entries (adapter + client-safe leaf, FetchReport, additive-only migrations, availability evidence rules, backup/export boundaries, cloud-writes/local-verifies workflow); this file's §3–§7 reconciled with reality (stale "not implemented" items for availability/backup removed); README/CLAUDE/AGENTS/UI_SPEC status blocks refreshed.
-- Tests run (sandbox): docs-only change; `npm test` 186/186 re-run as ritual; build untouched by docs.
-- Known failures: none.
-- Next recommended task: usage observation (§6). Codex merge of this branch needs only a read-through, no real-machine verification.
-- Summary: documentation now matches the system that exists.
+- Current status: UX batch U1 (from the usage-observation review) implemented on the branch; U2 (per-item read system) and U3 (settings overhaul + sidebar drag) approved and queued.
+- What changed: ① Startup auto-refresh — `AutoRefresh` client component on the home page posts a windowless `/api/refresh` with `force=false` (per-binding intervalMin throttling preserved) plus a 15-minute localStorage session throttle; silent when no binding is due, otherwise shows `自动刷新：+N 新 · M 更（· K 个源失败）` and router-refreshes. ② "上次刷新 X 前" labels — global in the home topbar (from new `getRefreshStatus()`), per-source in SourceItem; when the oldest enabled binding exceeds 7 days a 「离开较久，建议回溯」 warning with tooltip appears. ③ Refresh menu honesty rework — primary action 「检查更新」(windowless, force=true) imports everything new; 「刷新今天/刷新本周(新增滚动7天)/指定范围」 carry explicit 「仅导入该时段发布」 subtitles; 「全部时间」 renamed 「深度刷新」(arXiv paging); menu footer points to per-source 「回溯历史」 for full history. Window resolution extracted to pure `src/lib/refresh-scope.ts` (`scopeWindow`/`parseScope`) consumed by the route; new pure `agoLabel` in view.ts.
+- Tests run (sandbox): `npm test` 191/191 (+5: refresh-scope 4, agoLabel 1); `npm run build` passed. Pending Codex real-machine: auto-refresh behavior on app open (status line, throttle, no UI blocking while X runs), menu texts, last-refreshed labels, week-scope import.
+- Known failures: none in sandbox.
+- Next recommended task: Codex verifies and merges U1; then Claude implements U2 (Item.readAt additive migration + read checkboxes + auto-mark-on-click + unread badges + home unread timeline + sources panel collapse).
+- Summary: U1 — the refresh system now tells the truth and runs itself on startup.
