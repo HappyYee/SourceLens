@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { getHomeRooms, getRefreshStatus } from "@/lib/data";
+import { getHomeRooms, getRefreshStatus, getUnreadFeed, type UnreadFeedItem } from "@/lib/data";
 import type { RoomVM } from "@/lib/types";
 import { IconArrow, PlatformIcon } from "@/components/icons";
 import AutoRefresh from "@/components/AutoRefresh";
+import UnreadFeed from "@/components/UnreadFeed";
 import RefreshButton from "@/components/RefreshButton";
 import {
   agoLabel,
@@ -10,7 +11,6 @@ import {
   formatRelativeTime,
   impCells,
   sortRoomsByRecent,
-  updCount,
 } from "@/lib/view";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +41,12 @@ export default async function HomePage({
     ? Math.floor((now.getTime() - oldestFetchedAt.getTime()) / 86_400_000)
     : 0;
   if (sortMode === "recent") rooms = sortRoomsByRecent(rooms);
+  let unreadFeed: UnreadFeedItem[] = [];
+  try {
+    unreadFeed = await getUnreadFeed(50);
+  } catch {
+    /* 未读流缺席不影响首页 */
+  }
 
   return (
     <>
@@ -76,6 +82,8 @@ export default async function HomePage({
           每个方块是一个 <b>room</b>（一个你关注的对象）。大小与位置由你给它设的重要度决定，
           <b>不是算法推断</b>。点任意方块进入它的全平台时间线，或从左侧自定义分区进入。
         </p>
+
+        <UnreadFeed initial={unreadFeed} nowISO={now.toISOString()} />
 
         {rooms.length === 0 ? (
           <div className="empty" style={{ textAlign: "left", lineHeight: 1.9 }}>
@@ -117,7 +125,7 @@ export default async function HomePage({
                       ))}
                     </span>
                   </div>
-                  <div className="tile-upd">● 今日 {updCount(r, now)} 条更新</div>
+                  <div className="tile-upd">● 未读 {r.unreadCount ?? 0} 条</div>
                   <div className="peek">
                     {peeks.length === 0 ? (
                       <div className="peek-item">

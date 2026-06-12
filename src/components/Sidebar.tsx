@@ -81,7 +81,7 @@ export default function Sidebar({
       >
         {row.name}
         <ImpDots n={row.importance} />
-        {row.updCount > 0 ? <span className="upd">{row.updCount}</span> : null}
+        {row.unreadCount > 0 ? <span className="upd">{row.unreadCount}</span> : null}
       </Link>
     );
   }
@@ -101,7 +101,7 @@ export default function Sidebar({
           <span className="dot" />
           {stats.sources} sources
         </span>
-        <span>{stats.updated} 有更新</span>
+        <span>{stats.updated} 有未读</span>
       </div>
 
       <div className="nav">

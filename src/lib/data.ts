@@ -3,7 +3,7 @@
 import { prisma } from "./db";
 import type { NavData, RoomTypeVM, RoomVM } from "./types";
 import type { NavRow } from "./types";
-import { toRoomVM } from "./map";
+import { toRoomVM, toItemVM } from "./map";
 import { sortedRooms } from "./view";
 import { buildTree } from "./tree";
 
@@ -39,7 +39,41 @@ export async function getHomeRooms(): Promise<RoomVM[]> {
     }),
     getTypeLabelMap(),
   ]);
-  return sortedRooms(rooms.map((r) => withTypeLabel(toRoomVM(r), labels)));
+  const unread = await unreadCountByRoom();
+  return sortedRooms(
+    rooms.map((r) => ({
+      ...withTypeLabel(toRoomVM(r), labels),
+      unreadCount: unread[r.id] ?? 0,
+    })),
+  );
+}
+
+/** 各 Room 未读条数（readAt IS NULL）。 */
+async function unreadCountByRoom(): Promise<Record<string, number>> {
+  const grouped = await prisma.item.groupBy({
+    by: ["roomId"],
+    where: { readAt: null },
+    _count: { _all: true },
+  });
+  const out: Record<string, number> = {};
+  for (const g of grouped) out[g.roomId] = g._count._all;
+  return out;
+}
+
+export interface UnreadFeedItem {
+  room: { id: string; name: string };
+  item: import("./types").ItemVM;
+}
+
+/** 首页"新内容"：全局未读流（按发布时间降序，最多 limit 条）。 */
+export async function getUnreadFeed(limit = 50): Promise<UnreadFeedItem[]> {
+  const rows = await prisma.item.findMany({
+    where: { readAt: null },
+    orderBy: { publishedAt: "desc" },
+    take: limit,
+    include: { room: { select: { id: true, name: true } } },
+  });
+  return rows.map((r) => ({ room: { id: r.room.id, name: r.room.name }, item: toItemVM(r) }));
 }
 
 /** 单个节点（room/folder 都可），含 room 的时间线。支持 before 回溯翻页。 */
@@ -66,13 +100,12 @@ export async function getRoomById(
 
 /** 侧栏：导航树（任意深度）+ 顶部统计。 */
 export async function getNavTree(): Promise<NavData> {
-  const start = startOfToday();
   const [rows, labels] = await Promise.all([
     prisma.room.findMany({
       orderBy: { sortOrder: "asc" },
       include: {
         _count: { select: { bindings: true } },
-        items: { where: { publishedAt: { gte: start } }, select: { id: true } },
+        items: { where: { readAt: null }, select: { id: true } },
       },
     }),
     getTypeLabelMap(),
@@ -81,9 +114,9 @@ export async function getNavTree(): Promise<NavData> {
   let sources = 0;
   let updated = 0;
   const navRows: NavRow[] = rows.map((r) => {
-    const today = r.items.length;
+    const unread = r.items.length;
     sources += r._count.bindings;
-    if (r.nodeKind === "room" && today > 0) updated += 1;
+    if (r.nodeKind === "room" && unread > 0) updated += 1;
     return {
       id: r.id,
       name: r.name,
@@ -91,7 +124,7 @@ export async function getNavTree(): Promise<NavData> {
       parentId: r.parentId,
       sortOrder: r.sortOrder,
       importance: r.importance,
-      updCount: today,
+      unreadCount: unread,
       roomType: r.type,
       typeLabel: r.type ? (labels[r.type] ?? r.type) : null,
     };
@@ -129,20 +162,19 @@ export interface FolderChild {
   nodeKind: string;
   typeLabel: string | null;
   importance: number;
-  updCount: number;
+  unreadCount: number;
   childCount: number;
 }
 
 /** folder 页：直接子节点（子 folder + 子 room），folder 在前。 */
 export async function getFolderChildren(folderId: string): Promise<FolderChild[]> {
-  const start = startOfToday();
   const [rows, labels] = await Promise.all([
     prisma.room.findMany({
       where: { parentId: folderId },
       orderBy: { sortOrder: "asc" },
       include: {
         _count: { select: { children: true } },
-        items: { where: { publishedAt: { gte: start } }, select: { id: true } },
+        items: { where: { readAt: null }, select: { id: true } },
       },
     }),
     getTypeLabelMap(),
@@ -153,7 +185,7 @@ export async function getFolderChildren(folderId: string): Promise<FolderChild[]
     nodeKind: r.nodeKind,
     typeLabel: r.type ? (labels[r.type] ?? r.type) : null,
     importance: r.importance,
-    updCount: r.items.length,
+    unreadCount: r.items.length,
     childCount: r._count.children,
   }));
   return mapped.sort((a, b) => {

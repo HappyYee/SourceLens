@@ -78,3 +78,17 @@ test("toRoomVM: nodeKind/type 透传 + bindings 去重 + items 映射", () => {
   assert.equal(r.items.length, 1);
   assert.equal(r.items[0].aiTitle, "a");
 });
+
+// —— U2：readAt 透传 —— //
+test("toItemVM：readAt Date→ISO、缺省→null", () => {
+  const base = {
+    id: "i1", platform: "rss", title: "t", aiTitle: null, excerpt: null,
+    url: "https://e", thumbnailUrl: null, durationSec: null, author: null,
+    publishedAt: new Date("2026-06-12T00:00:00.000Z"),
+  };
+  assert.equal(toItemVM(base).readAt, null);
+  assert.equal(
+    toItemVM({ ...base, readAt: new Date("2026-06-12T01:00:00.000Z") }).readAt,
+    "2026-06-12T01:00:00.000Z",
+  );
+});

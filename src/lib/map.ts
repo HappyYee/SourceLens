@@ -24,6 +24,7 @@ export interface ItemRow {
   publishedAt: Date | string;
   availability?: string | null;
   missingSince?: Date | string | null;
+  readAt?: Date | string | null;
 }
 
 export interface RoomRow {
@@ -111,6 +112,12 @@ export function toItemVM(it: ItemRow): ItemVM {
         : typeof it.missingSince === "string"
           ? it.missingSince
           : it.missingSince.toISOString(),
+    readAt:
+      it.readAt == null
+        ? null
+        : typeof it.readAt === "string"
+          ? it.readAt
+          : it.readAt.toISOString(),
   };
 }
 
