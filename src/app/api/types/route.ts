@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getRoomTypes } from "@/lib/data";
+import { uniqueTypeKey } from "@/lib/type-key";
 
 export const dynamic = "force-dynamic";
 
@@ -12,8 +13,13 @@ export async function GET() {
 // 新增内容类型
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
-  const key = typeof body?.key === "string" ? body.key.trim() : "";
   const displayName = typeof body?.displayName === "string" ? body.displayName.trim() : "";
+  // key 可省略：由显示名自动生成（U3）。显式传入时仍校验格式。
+  let key = typeof body?.key === "string" ? body.key.trim() : "";
+  if (!key && displayName) {
+    const existing = await prisma.roomType.findMany({ select: { key: true } });
+    key = uniqueTypeKey(displayName, existing.map((t) => t.key));
+  }
 
   if (!/^[a-z0-9_]+$/i.test(key)) {
     return NextResponse.json({ error: "key 仅限字母 / 数字 / 下划线" }, { status: 400 });
