@@ -227,11 +227,12 @@ Web AI collaborators working read-only should not update this file unless the us
 
 ## 12. Last Updated
 
-- Updated by: Claude 20x Web Architect (Claude Code cloud sandbox, branch `claude/amazing-ride-oa1jss`)
-- Date: 2026-06-12 (UTC sandbox time)
-- Current status: UX batch U2 (per-item read system + home unread feed + collapsed source management) implemented on the branch; includes one additive migration (`u2_item_read_at`, single ADD COLUMN, sandbox-rehearsed). U3 (settings overhaul + sidebar drag) queued next.
+- Updated by: Codex Local Executor
+- Date: 2026-06-12 (Asia/Shanghai)
+- Current status: UX batch U2 (per-item read system + home unread feed + collapsed source management) has been applied to the real local database and locally verified. The additive migration `20260612080617_u2_item_read_at` was reviewed as a single `ALTER TABLE "Item" ADD COLUMN "readAt" DATETIME;` and deployed successfully after backup.
 - What changed: ① `Item.readAt` (nullable; write ownership: only the two read routes — `POST /api/items/[id]/read` toggle and `POST /api/rooms/[id]/read-all` — refresh and metadata checker never write it). ② ItemCard gained optional read controls: ✓ toggle button, auto-mark on external-link click (`onOpen`), `.item.read` dimming (hover restores), and an optional Room badge chip for cross-room feeds. ③ RoomView wires toggle/auto-mark/「全部标为已读」 (replaces the toolbar 删除 room button). ④ Home gained a 「新内容」 global unread feed (top 50 by publishedAt, optimistic removal on read) above the tiles. ⑤ Unread becomes the system-wide badge semantic: sidebar `NavRow.unreadCount` (renamed from updCount), folder children, sidebar stats label 「N 有未读」, home tiles 「● 未读 N 条」 (replacing today-published counts everywhere). ⑥ RoomSources management area is collapsed by default behind 「管理来源 ▾」 (platform mini-chips in the header); 删除 room moved inside the expanded management area's danger row.
-- Tests run (sandbox): `npm test` 194/194; `npm run build` passed; migration rehearsed on the synthetic DB (pure ADD COLUMN verified, counts intact).
-- Known failures: none in sandbox.
-- Next recommended task: Codex applies the migration on the real DB (backup → `prisma migrate deploy` → verify) and runs the U2 checklist; merge to `main`. Then U3.
-- Summary: U2 — the consumption loop closes: open → see unread → read → it leaves the pile.
+- Tests run: `npx prisma generate`; `npm test` 194/194; `npm run build` passed after the real migration. Pre-migration build correctly exposed that the local Prisma Client/schema expected `Item.readAt` before the real DB had the column; after `npx prisma migrate deploy && npx prisma generate`, build completed cleanly.
+- Local verification: `npm run backup` created `data/backups/sourcelens-20260612-163638.db` with `integrity=ok`; pre/post migration counts stayed `Item=551`, `SourceBinding=10`, `AuthProfile=2`; initial read state was `readAtNull=551`. Single item read toggle verified `551 unread → 550 → 551`; one Room `read-all` verified `50 unread → 0` and global unread `551 → 501`; refreshing that Room's YouTube source kept those 50 items read. X/Bilibili/YouTube latest each returned HTTP 200, `ok=true`, `failedCount=0`. No new item arrived during the validation refreshes, so the "new items enter unread" path was not observed in this run.
+- Known failures: none in code/API validation. Browser-plugin visual verification was not available in this Codex run; expanded source-management visual details were verified by static code review and route/API checks, with final pixel-level confirmation left to the user's browser if needed.
+- Next recommended task: merge U2 to `main`, push after user confirmation, then start U3 (settings overhaul + sidebar drag).
+- Summary: U2 — the consumption loop closes on the real database: open → see unread → read → it leaves the pile; refresh does not resurrect read items.
