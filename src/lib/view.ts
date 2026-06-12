@@ -150,3 +150,13 @@ export function agoLabel(t: string | Date, now: Date): string {
   if (hr < 24) return `${hr} 小时前`;
   return `${Math.floor(hr / 24)} 天前`;
 }
+
+/** 首页"最近更新"排序：按最新条目时间降序；无条目的 room 殿后；同刻按重要度。 */
+export function sortRoomsByRecent(rooms: RoomVM[]): RoomVM[] {
+  return [...rooms].sort((a, b) => {
+    const ta = a.items[0] ? +new Date(a.items[0].publishedAt) : -1;
+    const tb = b.items[0] ? +new Date(b.items[0].publishedAt) : -1;
+    if (tb !== ta) return tb - ta;
+    return b.importance - a.importance;
+  });
+}

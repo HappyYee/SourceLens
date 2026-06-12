@@ -137,6 +137,8 @@ body{
 .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--card)}
 .seg button{border:none;background:transparent;cursor:pointer;font-family:var(--mono);font-size:11px;padding:7px 13px;color:var(--ink-3)}
 .seg button.on{background:var(--ink);color:var(--paper)}
+.seg a{font-family:var(--mono);font-size:11px;padding:7px 13px;color:var(--ink-3);text-decoration:none;display:inline-block}
+.seg a.on{background:var(--ink);color:var(--paper)}
 
 .content{padding:30px 36px 64px;max-width:1180px}
 

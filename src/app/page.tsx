@@ -9,13 +9,19 @@ import {
   displayTitle,
   formatRelativeTime,
   impCells,
+  sortRoomsByRecent,
   updCount,
 } from "@/lib/view";
 
 export const dynamic = "force-dynamic";
 
-export default async function HomePage() {
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams?: { sort?: string };
+}) {
   const now = new Date();
+  const sortMode = searchParams?.sort === "recent" ? "recent" : "importance";
   let rooms: RoomVM[] = [];
   try {
     rooms = await getHomeRooms();
@@ -34,6 +40,7 @@ export default async function HomePage() {
   const staleDays = oldestFetchedAt
     ? Math.floor((now.getTime() - oldestFetchedAt.getTime()) / 86_400_000)
     : 0;
+  if (sortMode === "recent") rooms = sortRoomsByRecent(rooms);
 
   return (
     <>
@@ -50,10 +57,12 @@ export default async function HomePage() {
         </span>
         <AutoRefresh />
         <div className="seg">
-          <button type="button" className="on">
+          <Link href="/" className={sortMode === "importance" ? "on" : ""}>
             重要性
-          </button>
-          <button type="button">最近更新</button>
+          </Link>
+          <Link href="/?sort=recent" className={sortMode === "recent" ? "on" : ""}>
+            最近更新
+          </Link>
         </div>
         <RefreshButton label="检查更新" />
       </div>

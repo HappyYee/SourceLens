@@ -14,6 +14,7 @@ import { effectiveVideoKind, inWindow } from "./view";
 import { assertDataDir } from "./storage";
 import { truncate } from "./text.ts";
 import { fetchablePlatforms, getAdapter } from "./platform/registry.ts";
+import { groupBindingsByPlatform } from "./refresh-plan.ts";
 import { classifyError, type ErrorCode, type FetchReport } from "./report.ts";
 import {
   formatOutcome,
@@ -292,22 +293,26 @@ export async function refreshDue(opts?: {
     until: opts?.until,
     deep: opts?.deep,
   };
-  const results: BindingFetchReport[] = [];
-  let added = 0;
-  let updated = 0;
-
-  for (const b of bindings) {
-    if (!fetchablePlatforms().has(b.platform)) continue;
-    const due =
-      opts?.force ||
-      !b.lastFetchedAt ||
-      (now - b.lastFetchedAt.getTime()) / 60_000 >= b.intervalMin;
-    if (!due) continue;
-    const r = await refreshBinding(b.id, window);
-    results.push(r);
-    added += r.createdCount ?? 0;
-    updated += r.updatedCount ?? 0;
-  }
+  const due = bindings.filter(
+    (b) =>
+      fetchablePlatforms().has(b.platform) &&
+      (opts?.force ||
+        !b.lastFetchedAt ||
+        (now - b.lastFetchedAt.getTime()) / 60_000 >= b.intervalMin),
+  );
+  // 跨平台并行、平台内串行（安全理由见 refresh-plan.ts）：
+  // 总时长从 Σ(各源) 降为 max(各平台)，X 的浏览器启动不再阻塞其它平台。
+  const groups = groupBindingsByPlatform(due);
+  const groupResults = await Promise.all(
+    groups.map(async (rows) => {
+      const out: BindingFetchReport[] = [];
+      for (const b of rows) out.push(await refreshBinding(b.id, window));
+      return out;
+    }),
+  );
+  const results = groupResults.flat();
+  const added = results.reduce((n, r) => n + (r.createdCount ?? 0), 0);
+  const updated = results.reduce((n, r) => n + (r.updatedCount ?? 0), 0);
   // 聚合层对外键名（bindings/added/updated）保持不变：RefreshButton 依赖。
   return { bindings: results.length, added, updated, results };
 }

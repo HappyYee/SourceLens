@@ -175,3 +175,24 @@ test("agoLabel：刚刚 / 分钟 / 小时 / 天 边界", () => {
   assert.equal(agoLabel(new Date("2026-06-12T09:00:00.000Z"), now), "3 小时前");
   assert.equal(agoLabel(new Date("2026-06-04T12:00:00.000Z"), now), "8 天前");
 });
+
+// —— U1.5：最近更新排序 —— //
+import { sortRoomsByRecent } from "../src/lib/view.ts";
+import type { RoomVM } from "../src/lib/types.ts";
+
+test("sortRoomsByRecent：最新条目降序、空 room 殿后、同刻按重要度", () => {
+  const mk = (id: string, importance: number, ts?: string): RoomVM => ({
+    id, name: id, nodeKind: "room", type: null, typeLabel: null, importance,
+    bindings: [], items: ts ? [{
+      id: "i", platform: "rss", title: "t", aiTitle: null, excerpt: null,
+      url: "https://e", publishedAt: ts,
+    } as RoomVM["items"][number]] : [],
+  });
+  const out = sortRoomsByRecent([
+    mk("old", 2, "2026-06-01T00:00:00.000Z"),
+    mk("empty", 4),
+    mk("new", 1, "2026-06-12T00:00:00.000Z"),
+    mk("tie-hi", 5, "2026-06-01T00:00:00.000Z"),
+  ]);
+  assert.deepEqual(out.map((r) => r.id), ["new", "tie-hi", "old", "empty"]);
+});
