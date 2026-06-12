@@ -410,3 +410,23 @@ body{
 .src-head-icons{display:flex;gap:4px}
 .src-mini{font-family:var(--mono);font-size:9.5px;color:var(--ink-3);border:1px solid var(--line);border-radius:4px;padding:1px 5px}
 .src-danger{margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);display:flex;align-items:center;gap:10px}
+
+/* U3a：设置页重构 */
+.set-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.set-node.lite{display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid var(--line)}
+.set-node.lite .spacer{flex:1}
+.nav-caret-ph{display:inline-block;width:18px}
+.set-typechip{font-family:var(--mono);font-size:10px;color:var(--ink-3);border:1px solid var(--line);border-radius:5px;padding:1px 6px}
+.set-impdots{font-size:8px;letter-spacing:1px;color:var(--accent)}
+.set-count{font-family:var(--mono);font-size:10px;color:var(--ink-3)}
+.set-node-edit{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 4px 10px 22px;border-bottom:1px solid var(--line);background:var(--paper-2)}
+.type-row .spacer{flex:1}
+.set-danger-zone{margin-top:22px;border:1px solid #e3c0c0;border-radius:10px;padding:12px 14px;background:#fdf6f6}
+.set-danger-zone h3{font-family:var(--serif);font-size:14px;color:#a23;margin-bottom:8px}
+
+/* U3b：侧栏拖拽 */
+.nav-folder-head.dragging,.room-link.dragging{opacity:.45}
+.nav-folder-head.drop-into{outline:1.5px dashed var(--accent);outline-offset:-1px;background:var(--accent-soft)}
+.room-link.drop-after{box-shadow:inset 0 -2px 0 var(--accent)}
+.root-drop{margin:10px 12px;border:1.5px dashed var(--line);border-radius:8px;padding:10px;text-align:center;font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
+.root-drop.drop-into{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}

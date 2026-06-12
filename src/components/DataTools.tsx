@@ -40,7 +40,10 @@ export default function DataTools() {
   }
 
   async function clearAll() {
-    if (!confirm("确定清空全部数据？rooms / 来源 / 内容都会删除，且不可恢复。")) return;
+    const word = window.prompt(
+      '危险操作：将删除全部 rooms / 来源 / 内容且不可恢复。\n建议先运行 npm run backup。\n确认请输入：清空',
+    );
+    if (word !== "清空") return;
     setBusy(true);
     setMsg(null);
     try {
@@ -65,9 +68,6 @@ export default function DataTools() {
         <a className="set-btn ghost" href="/api/export">
           ⬇ 导出全部 (JSON)
         </a>
-        <button className="set-btn danger" type="button" onClick={clearAll} disabled={busy}>
-          清空全部数据
-        </button>
         {msg && <span className="set-muted">{msg}</span>}
       </div>
 
@@ -101,8 +101,18 @@ export default function DataTools() {
       </div>
 
       <p className="set-muted" style={{ marginTop: 10 }}>
-        OPML 里每个 feed 会变成一个 rss room，文件夹变成分区。导入后回首页点"刷新全部"抓取内容。
+        OPML 里每个 feed 会变成一个 rss room，文件夹变成分区。导入后回首页点"检查更新"抓取内容。
       </p>
+
+      <div className="set-danger-zone">
+        <h3>危险区</h3>
+        <div className="set-form" style={{ alignItems: "center" }}>
+          <button className="set-btn danger" type="button" onClick={clearAll} disabled={busy}>
+            清空全部数据
+          </button>
+          <span className="set-muted">删除全部 rooms / 来源 / 内容，不可恢复；需输入确认词。建议先 npm run backup。</span>
+        </div>
+      </div>
     </div>
   );
 }
