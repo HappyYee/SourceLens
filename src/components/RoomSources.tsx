@@ -52,11 +52,14 @@ function hintFor(p: string): string {
 export default function RoomSources({
   roomId,
   sources,
+  onDeleteRoom,
 }: {
   roomId: string;
   sources: SourceRow[];
+  onDeleteRoom?: () => void;
 }) {
   const router = useRouter();
+  const [open, setOpen] = useState(false); // U2：管理区默认折叠，消费动线不被表单占屏
   const [busy, setBusy] = useState(false);
   const [platform, setPlatform] = useState<string>("youtube");
   const [value, setValue] = useState("");
@@ -96,20 +99,30 @@ export default function RoomSources({
     <div className="src-panel">
       <div className="src-head">
         来源 Sources <span className="set-muted">（{sources.length}）</span>
+        <span className="src-head-icons">
+          {[...new Set(sources.map((s) => s.platform))].map((p) => (
+            <span key={p} className="src-mini">{platformLabel(p as Platform)}</span>
+          ))}
+        </span>
+        <span className="spacer" />
+        <button type="button" className="set-btn ghost" onClick={() => setOpen((o) => !o)}>
+          {open ? "收起管理 ▲" : "管理来源 ▾"}
+        </button>
       </div>
 
-      {sources.length === 0 ? (
+      {!open ? null : sources.length === 0 ? (
         <div className="set-muted" style={{ marginBottom: 12 }}>
           还没有来源。下面添加一个 YouTube 频道或 RSS，然后用该来源的"刷新最新 / 回溯历史"。
         </div>
-      ) : (
+      ) : open ? (
         <div className="src-list">
           {sources.map((s) => (
             <SourceItem key={s.id} source={s} onChanged={() => router.refresh()} />
           ))}
         </div>
-      )}
+      ) : null}
 
+      {open ? (
       <div className="src-add">
         <select
           className="set-select"
@@ -145,6 +158,16 @@ export default function RoomSources({
           ＋ 添加 Source
         </button>
       </div>
+      ) : null}
+
+      {open && onDeleteRoom ? (
+        <div className="src-danger">
+          <button type="button" className="set-btn danger" onClick={onDeleteRoom}>
+            删除 room
+          </button>
+          <span className="set-muted">删除 room 会删除其来源与全部卡片；子 room 上移一层。</span>
+        </div>
+      ) : null}
     </div>
   );
 }

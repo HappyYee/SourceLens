@@ -52,6 +52,8 @@ export interface ItemVM {
   availability?: string | null;
   /** 首次"源头确认缺失"时间（ISO），仅 unavailable 时有意义。 */
   missingSince?: string | null;
+  /** 用户已读时间（ISO）；null/缺省=未读（U2）。 */
+  readAt?: string | null;
 }
 
 /** 一个节点：folder(分区) 或 room(内容房间)。room 才聚合 Source 时间线。 */
@@ -64,6 +66,8 @@ export interface RoomVM {
   importance: number; // 1..5
   bindings: Platform[];
   items: ItemVM[];
+  /** 未读条数（U2，由 DB 聚合填充；磁贴/导航角标用）。 */
+  unreadCount?: number;
 }
 
 /* ---------- 左侧导航树 ---------- */
@@ -74,7 +78,7 @@ export interface NavRow {
   parentId: string | null;
   sortOrder: number;
   importance: number;
-  updCount: number;
+  unreadCount: number;
   roomType: string | null;
   typeLabel: string | null;
 }

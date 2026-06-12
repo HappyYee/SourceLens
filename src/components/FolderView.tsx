@@ -67,8 +67,8 @@ export default function FolderView({
         ) : null}
         {c.nodeKind === "folder" ? (
           <span className="fr-meta">{c.childCount} 项</span>
-        ) : c.updCount > 0 ? (
-          <span className="upd">{c.updCount}</span>
+        ) : c.unreadCount > 0 ? (
+          <span className="upd">{c.unreadCount}</span>
         ) : null}
       </Link>
     );

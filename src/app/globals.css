@@ -394,3 +394,19 @@ body{
 .rm-item.rm-primary{font-weight:600}
 .rm-hint{font-family:var(--mono);font-size:10px;color:var(--ink-3);border-top:1px solid var(--line);margin-top:6px;padding:7px 10px 4px}
 .src-meta{font-family:var(--mono);font-size:10px;color:var(--ink-3);white-space:nowrap}
+
+/* U2：已读系统 */
+.item.read{opacity:.55}
+.item.read:hover{opacity:1}
+.it-readbtn{border:1px solid var(--line);background:var(--card);color:var(--ink-3);border-radius:50%;width:18px;height:18px;font-size:10px;line-height:1;cursor:pointer;margin-left:8px;padding:0}
+.it-readbtn.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.it-room{font-family:var(--mono);font-size:10px;color:var(--accent);border:1px solid var(--accent-soft);border-radius:5px;padding:1px 6px;text-decoration:none;white-space:nowrap}
+.unread-feed{margin:18px 0 26px;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:14px 16px 6px}
+.uf-head{font-family:var(--serif);font-size:16px;font-weight:600;margin-bottom:8px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.uf-count{font-family:var(--mono);font-size:11px;color:var(--accent)}
+.uf-tip{font-family:var(--mono);font-size:10px;color:var(--ink-3);margin-left:auto}
+.src-head{display:flex;align-items:center;gap:8px}
+.src-head .spacer{flex:1}
+.src-head-icons{display:flex;gap:4px}
+.src-mini{font-family:var(--mono);font-size:9.5px;color:var(--ink-3);border:1px solid var(--line);border-radius:4px;padding:1px 5px}
+.src-danger{margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);display:flex;align-items:center;gap:10px}

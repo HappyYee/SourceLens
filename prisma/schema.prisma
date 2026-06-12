@@ -106,6 +106,9 @@ model Item {
   // —— 信息档案状态（Phase 3）。写入所有权：lastSeenAt 由 refresh/backfill upsert 写；
   //    availability/metadataStatus/lastCheckedAt/missingSince 仅 metadata checker（3b）可写，
   //    刷新"未出现"永远不是 unavailable 证据（RSS 滑动窗口原则）。
+  readAt         DateTime? //                    用户已读时间（U2）。写入权仅归已读路由
+  //                                              （点击外链 / 勾选 / 全部已读）；刷新与
+  //                                              metadata checker 永不写。null=未读。
   availability   String? //                       available | unavailable | unknown（null=从未评估；
   //                                              nullable=纯加列迁移，读取时 ?? "unknown"）
   metadataStatus String? //                       fresh | stale | partial | unavailable（null=未评估）

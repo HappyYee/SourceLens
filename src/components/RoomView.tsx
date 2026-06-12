@@ -118,6 +118,35 @@ export default function RoomView({
     }
   }
 
+  async function setRead(it: ItemVM, read: boolean) {
+    setItems((prev) =>
+      prev.map((x) =>
+        x.id === it.id ? { ...x, readAt: read ? new Date().toISOString() : null } : x,
+      ),
+    ); // 乐观
+    try {
+      await fetch(`/api/items/${it.id}/read`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ read }),
+      });
+      startTransition(() => router.refresh()); // 同步侧栏/首页未读角标
+    } catch {
+      // 忽略；下次刷新校正
+    }
+  }
+
+  async function readAll() {
+    const ts = new Date().toISOString();
+    setItems((prev) => prev.map((x) => (x.readAt ? x : { ...x, readAt: ts }))); // 乐观
+    try {
+      await fetch(`/api/rooms/${room.id}/read-all`, { method: "POST" });
+      startTransition(() => router.refresh());
+    } catch {
+      // 忽略
+    }
+  }
+
   async function deleteItem(id: string) {
     if (!confirm("删除这条内容？")) return;
     const prev = items;
@@ -201,12 +230,12 @@ export default function RoomView({
           </div>
         </div>
 
-        <RoomSources roomId={room.id} sources={sources} />
+        <RoomSources roomId={room.id} sources={sources} onDeleteRoom={deleteRoom} />
 
         <div className="room-toolbar">
           <ManualAdd roomId={room.id} />
-          <button type="button" className="set-btn danger" onClick={deleteRoom}>
-            删除 room
+          <button type="button" className="set-btn ghost" onClick={readAll}>
+            全部标为已读
           </button>
         </div>
 
@@ -231,6 +260,8 @@ export default function RoomView({
                     timeLabel={formatRelativeTime(it.publishedAt, now)}
                     onDelete={() => deleteItem(it.id)}
                     onEditTitle={() => editTitle(it)}
+                    onToggleRead={() => setRead(it, !it.readAt)}
+                    onOpen={() => { if (!it.readAt) setRead(it, true); }}
                   />
                 ))}
               </div>
